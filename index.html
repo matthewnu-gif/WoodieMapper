@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Woody Wall Mapper — Circle Holds</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111111">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+  }
+</script>
+
 <style>
   :root { --pad: 12px; --ui: 320px; }
   * { box-sizing: border-box; }
@@ -59,6 +67,10 @@
       <div>Total: <span id="holdCount">0</span></div>
       <div class="muted">Wheel over a hold to change its radius. Defaults scale with image size.</div>
       <button class="btn" id="clearHolds">Clear all holds</button>
+	  <div class="row">
+        <button class="btn" id="radiusMinus">− Radius</button>
+        <button class="btn" id="radiusPlus">+ Radius</button>
+      </div>
     </fieldset>
 	<fieldset id="usersPanel">
       <legend>Users</legend>
@@ -146,6 +158,7 @@
     pan: { active: false, x:0, y:0, startX:0, startY:0 },
     cam: { x:0, y:0, s: 1 }, // pan & zoom
     hoverId: null,
+	selectedHoldId: null,
     dragId: null,
     nextHoldId: 1,
     // problem building
@@ -258,7 +271,7 @@
     
       if (state.showRings) {
         ctx.beginPath(); ctx.arc(center.x, center.y, rPx, 0, Math.PI*2);
-        ctx.lineWidth = (state.hoverId === h.id) ? 3 : 2;
+        ctx.lineWidth = (state.hoverId === h.id || state.selectedHoldId === h.id) ? 3 : 2;
         ctx.strokeStyle = stroke || 'rgba(0,0,0,0.85)';
         ctx.stroke();
     
@@ -429,6 +442,15 @@
   document.getElementById('showIds').addEventListener('change', e=>{ state.showIds = !!e.target.checked; draw(); });
   document.getElementById('showRings').addEventListener('change', e=>{ state.showRings = !!e.target.checked; draw(); });
   document.getElementById('dimImage').addEventListener('change', e=>{ state.dimImage = !!e.target.checked; draw(); });
+  document.getElementById('radiusMinus').addEventListener('click', ()=>{
+    if (state.hoverId==null) return;
+    resizeHover(-1);
+  });
+  document.getElementById('radiusPlus').addEventListener('click', ()=>{
+    if (state.hoverId==null) return;
+    resizeHover(+1);
+  });
+
 
   // Mouse interactions
   let isSpacePanning = false;
@@ -447,6 +469,8 @@
       const hit = pickHold(imgPt);
       if (hit) {
         state.dragId = hit.id; // start dragging center
+		state.hoverId = hit.id;
+		state.selectedHoldId = hit.id;
       } else {
         // create a new circular hold
         const n = imgToNorm(imgPt.x, imgPt.y);
@@ -780,6 +804,29 @@ clearTickBtn.addEventListener('click', () => {
   }
 
   function getMousePos(e){ const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+  // --- Touch to mouse mapping (simple) ---
+  function firstTouch(e){ return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]); }
+  function touchPos(t){
+    const rect = canvas.getBoundingClientRect();
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  canvas.addEventListener('touchstart', (e) => {
+    const t = firstTouch(e); if (!t) return;
+    const p = touchPos(t);
+    canvas.dispatchEvent(new MouseEvent('mousedown', {clientX: p.x + canvas.getBoundingClientRect().left, clientY: p.y + canvas.getBoundingClientRect().top, buttons:1}));
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchmove', (e) => {
+    const t = firstTouch(e); if (!t) return;
+    const p = touchPos(t);
+    canvas.dispatchEvent(new MouseEvent('mousemove', {clientX: p.x + canvas.getBoundingClientRect().left, clientY: p.y + canvas.getBoundingClientRect().top, buttons:1}));
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchend', (e) => {
+    canvas.dispatchEvent(new MouseEvent('mouseup', {}));
+    e.preventDefault();
+  }, {passive:false});
+
 
   // initial draw
   ensureActiveUser();
