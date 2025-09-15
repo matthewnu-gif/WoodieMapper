@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Woody Wall Mapper — Circle Holds</title>
+<style>
+  :root { --pad: 12px; --ui: 320px; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#222; }
+  header { padding: var(--pad); border-bottom:1px solid #eee; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  main { display:flex; height: calc(100vh - 60px); }
+  #left { flex:1; display:grid; place-items:center; background:#fafafa; }
+  #right { width: var(--ui); border-left:1px solid #eee; overflow:auto; padding: var(--pad); }
+  canvas { max-width: 100%; height: auto; background:#e6e6e6; cursor: crosshair; }
+  fieldset { border:1px solid #eee; margin:0 0 12px 0; padding:8px; border-radius:8px; }
+  legend { font-weight:600; }
+  label { display:block; margin:6px 0; }
+  input[type="color"] { vertical-align: middle; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .btn { padding:6px 10px; border:1px solid #ccc; border-radius:6px; background:#fff; cursor:pointer; }
+  .btn:active { transform: translateY(1px); }
+  .list { margin:8px 0; padding:0; list-style:none; max-height:180px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+  .list li { padding:6px 8px; border-bottom:1px solid #f3f3f3; display:flex; justify-content:space-between; gap:6px; align-items:center; }
+  .pill { padding:2px 6px; border-radius:999px; border:1px solid #ddd; font-size:12px; }
+  .muted { color:#888; }
+  .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; border:1px solid #ddd; padding:1px 4px; border-radius:4px; }
+  .warn { color:#a33; }
+</style>
+</head>
+<body>
+<header>
+  <input type="file" id="imageLoader" accept="image/*" />
+  <button class="btn" id="fitBtn" title="Fit image to canvas">Fit</button>
+  <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
+  <span class="muted">Resize hold: hover + mouse wheel (<span class="kbd">[</span>/<span class="kbd">]</span> keys too)</span>
+</header>
+
+<main>
+  <div id="left">
+    <canvas id="c" width="1200" height="800"></canvas>
+  </div>
+  <aside id="right">
+    <fieldset>
+      <legend>Options</legend>
+      <label><input type="checkbox" id="showIds" checked /> Show IDs</label>
+      <label><input type="checkbox" id="showRings" checked /> Show hold rings</label>
+      <label><input type="checkbox" id="dimImage" /> Dim image behind overlays</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Mode</legend>
+      <label><input type="radio" name="mode" value="holds" checked /> Holds (click to add circle, drag to move, <span class="kbd">Del</span> to remove)</label>
+      <label><input type="radio" name="mode" value="problems" /> Problems (click holds to toggle)</label>
+    </fieldset>
+
+    <fieldset id="holdsPanel">
+      <legend>Holds</legend>
+      <div>Total: <span id="holdCount">0</span></div>
+      <div class="muted">Wheel over a hold to change its radius. Defaults scale with image size.</div>
+      <button class="btn" id="clearHolds">Clear all holds</button>
+    </fieldset>
+	<fieldset id="usersPanel">
+      <legend>Users</legend>
+      <div class="row">
+        <select id="userSelect" style="flex:1; min-width:160px"></select>
+        <button class="btn" id="deleteUserBtn" title="Delete selected user">Delete</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input id="newUserName" type="text" placeholder="Add user name" style="flex:1; min-width:160px" />
+        <button class="btn" id="addUserBtn">Add</button>
+      </div>
+    </fieldset>
+
+    <fieldset id="problemsPanel">
+      <legend>Problems</legend>
+      <label>Name <input id="pbName" type="text" placeholder="Problem name" style="width:100%" /></label>
+      <div class="row">
+        <label class="row">Colour <input id="pbColor" type="color" value="#1e90ff" /></label>
+        <label class="row">Grade <input id="pbGrade" type="text" placeholder="e.g. 6B" style="width:90px" /></label>
+      </div>
+	  <div class="row" style="margin-top:6px">
+		<strong>Category:</strong>
+		<label class="row"><input type="radio" name="cat" value="start"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#22c55e"></span> Start</label>
+		<label class="row"><input type="radio" name="cat" value="hands" checked> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3b82f6"></span> Hands</label>
+		<label class="row"><input type="radio" name="cat" value="feet"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#eab308"></span> Feet</label>
+		<label class="row"><input type="radio" name="cat" value="finish"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ef4444"></span> Finish</label>
+	  </div>
+      <label><input type="checkbox" id="feetFollow" checked /> Feet follow</label>
+      <div class="row">
+        <button class="btn" id="markStart">nothing</button>
+        <button class="btn" id="markFinish">nothing</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="saveProblem">Save problem</button>
+        <button class="btn" id="clearSelection">Clear selection</button>
+      </div>
+	  <div id="tickPanel" style="margin-top:8px; border:1px solid #eee; padding:8px; border-radius:8px;">
+        <div class="row" style="justify-content:space-between">
+          <strong>Tick for user:</strong>
+          <span id="tickProblemName" class="muted">(select a problem)</span>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label><input type="checkbox" id="tickSent"> Sent</label>
+          <label><input type="checkbox" id="tickOnsight"> Onsight</label>
+          <label><input type="checkbox" id="tickFlash"> Flash</label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label>Attempts <input type="number" id="tickAttempts" min="0" value="0" style="width:80px"></label>
+          <label>Sessions <input type="number" id="tickSessions" min="0" value="0" style="width:80px"></label>
+          <label>Date <input type="date" id="tickDate" style="width:150px"></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn" id="saveTickBtn">Save Tick</button>
+          <button class="btn" id="clearTickBtn">Clear Tick</button>
+        </div>
+      </div>
+
+      <ul class="list" id="problemList"></ul>
+    </fieldset>
+
+    <fieldset>
+      <legend>Storage</legend>
+      <div class="row">
+        <button class="btn" id="saveLocal">Save to Browser</button>
+        <button class="btn" id="loadLocal">Load</button>
+        <button class="btn" id="resetLocal">Reset</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="exportJson">Export JSON</button>
+        <input type="file" id="importJson" accept="application/json" />
+      </div>
+    </fieldset>
+
+    <div class="muted">This version ignores any pegboard/T-nut grid and lets you circle screw-in holds anywhere.</div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  // --- State ---
+  const state = {
+    image: null, imgW: 0, imgH: 0,
+    holds: [], // {id, x,y,r} where x,y are normalized [0..1], r is normalized radius vs min(imgW,imgH)
+    mode: 'holds',
+    pan: { active: false, x:0, y:0, startX:0, startY:0 },
+    cam: { x:0, y:0, s: 1 }, // pan & zoom
+    hoverId: null,
+    dragId: null,
+    nextHoldId: 1,
+    // problem building
+	sel: { start: new Set(), hands: new Set(), feet: new Set(), finish: new Set() },
+	currentCat: 'hands',
+    selection: new Set(),
+    start: new Set(),
+    finish: new Set(),
+    problems: [],
+	// users & ticks
+    users: [],               // [{id, name}]
+    activeUserId: null,      // current user id
+    currentProblemId: null,  // last "Show" pressed
+    ticks: {},               // { [userId]: { [problemId]: { sent, onsight, flash, attempts, sessions, date } } }
+    // UI toggles
+    showIds: true,
+    showRings: true,
+    dimImage: false,
+	lastViewedByUser: {},   // { [userId]: problemId }
+  };
+
+  // --- DOM ---
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const imageLoader = document.getElementById('imageLoader');
+  const fitBtn = document.getElementById('fitBtn');
+  const modeEls = document.querySelectorAll('input[name="mode"]');
+  const holdCountEl = document.getElementById('holdCount');
+  const clearHoldsBtn = document.getElementById('clearHolds');
+  const pbNameEl = document.getElementById('pbName');
+  const pbColorEl = document.getElementById('pbColor');
+  const pbGradeEl = document.getElementById('pbGrade');
+  const feetFollowEl = document.getElementById('feetFollow');
+  const markStartBtn = document.getElementById('markStart');
+  const markFinishBtn = document.getElementById('markFinish');
+  const saveProblemBtn = document.getElementById('saveProblem');
+  const clearSelectionBtn = document.getElementById('clearSelection');
+  const problemListEl = document.getElementById('problemList');
+  const showIdsEl = document.getElementById('showIds');
+  const showRingsEl = document.getElementById('showRings');
+  const dimImageEl = document.getElementById('dimImage');
+  const catEls = document.querySelectorAll('input[name="cat"]');
+  // Users DOM
+  const userSelect      = document.getElementById('userSelect');
+  const addUserBtn      = document.getElementById('addUserBtn');
+  const deleteUserBtn   = document.getElementById('deleteUserBtn');
+  const newUserNameEl   = document.getElementById('newUserName');
+  
+  // Tick DOM
+  const tickProblemNameEl = document.getElementById('tickProblemName');
+  const tickSentEl        = document.getElementById('tickSent');
+  const tickOnsightEl     = document.getElementById('tickOnsight');
+  const tickFlashEl       = document.getElementById('tickFlash');
+  const tickAttemptsEl    = document.getElementById('tickAttempts');
+  const tickSessionsEl    = document.getElementById('tickSessions');
+  const tickDateEl        = document.getElementById('tickDate');
+  const saveTickBtn       = document.getElementById('saveTickBtn');
+  const clearTickBtn      = document.getElementById('clearTickBtn');
+
+  // --- Helpers ---
+  function imgToCanvas(x, y) { return { x: (x * state.cam.s) + state.cam.x, y: (y * state.cam.s) + state.cam.y }; }
+  function canvasToImg(x, y) { return { x: (x - state.cam.x) / state.cam.s, y: (y - state.cam.y) / state.cam.s }; }
+  function normToImg(nx, ny) { return { x: nx * state.imgW, y: ny * state.imgH }; }
+  function imgToNorm(x, y) { return { x: x / state.imgW, y: y / state.imgH }; }
+  function distance(a,b) { const dx = a.x-b.x, dy = a.y-b.y; return Math.hypot(dx,dy); }
+  function clamp(v, a,b){ return Math.max(a, Math.min(b, v)); }
+  function clamp01(v){ return clamp(v,0,1); }
+  function minDim(){ return Math.min(state.imgW, state.imgH); }
+  function pxToNormRadius(px){ return px / minDim(); }
+  function normToPxRadius(rn){ return rn * minDim(); }
+
+  function currentProblemColor(){ return pbColorEl.value || '#1e90ff'; }
+  const CAT_COLORS = {
+    start:  '#22c55e', // green
+    hands:  '#3b82f6', // blue
+    feet:   '#eab308', // yellow
+    finish: '#ef4444', // red
+  };
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (state.image) {
+      const p = imgToCanvas(0,0);
+      if (state.dimImage) {
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.drawImage(state.image, p.x, p.y, state.imgW*state.cam.s, state.imgH*state.cam.s);
+        ctx.restore();
+      } else {
+        ctx.drawImage(state.image, p.x, p.y, state.imgW*state.cam.s, state.imgH*state.cam.s);
+      }
+      drawHolds();
+    } else {
+      ctx.fillStyle = '#666';
+      ctx.fillText('Load a wall image to begin', 20, 30);
+    }
+    requestAnimationFrame(()=>{});
+  }
+
+  function drawHolds(){
+    holdCountEl.textContent = String(state.holds.length);
+    for (const h of state.holds) {
+      const centerImg = { x: h.x * state.imgW, y: h.y * state.imgH };
+      const center = imgToCanvas(centerImg.x, centerImg.y);
+      const rPx = normToPxRadius(h.r) * state.cam.s;
+    
+      // Category precedence for stroke color (finish > start > hands > feet)
+      const order = ['finish','start','hands','feet'];
+      let stroke = null;
+      for (const c of order) if (state.sel[c].has(h.id)) { stroke = CAT_COLORS[c]; break; }
+    
+      if (state.showRings) {
+        ctx.beginPath(); ctx.arc(center.x, center.y, rPx, 0, Math.PI*2);
+        ctx.lineWidth = (state.hoverId === h.id) ? 3 : 2;
+        ctx.strokeStyle = stroke || 'rgba(0,0,0,0.85)';
+        ctx.stroke();
+    
+        // translucent fills for all categories this hold belongs to
+        for (const [c, color] of Object.entries(CAT_COLORS)){
+          if (state.sel[c].has(h.id)) {
+            ctx.beginPath(); ctx.arc(center.x, center.y, rPx, 0, Math.PI*2);
+            ctx.fillStyle = color + '33';
+            ctx.fill();
+          }
+        }
+      }
+    
+      // start/finish tick (kept for readability)
+      if (state.start.has(h.id) || state.finish.has(h.id)){
+        ctx.font = '12px system-ui';
+        ctx.fillStyle = '#111';
+        const label = (state.start.has(h.id) && state.finish.has(h.id)) ? 'S/F' : (state.start.has(h.id) ? 'S' : 'F');
+        ctx.fillText(label, center.x - 8, center.y - rPx - 6);
+      }
+    
+      if (state.showIds) {
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillStyle = '#111';
+        ctx.fillText(String(h.id), center.x - 3, center.y + 4);
+      }
+    }
+  }
+  function uuid() { return Math.random().toString(36).slice(2,10); }
+
+  function ensureActiveUser() {
+    if (!state.users.length) {
+      const u = { id: uuid(), name: 'Guest' };
+      state.users.push(u);
+      state.activeUserId = u.id;
+    } else if (!state.activeUserId) {
+      state.activeUserId = state.users[0].id;
+    }
+    renderUsers();
+  }
+  
+  function renderUsers() {
+    userSelect.innerHTML = '';
+    for (const u of state.users) {
+      const opt = document.createElement('option');
+      opt.value = u.id; opt.textContent = u.name;
+      if (u.id === state.activeUserId) opt.selected = true;
+      userSelect.appendChild(opt);
+    }
+  }
+  
+  function getActiveUser() {
+    return state.users.find(u => u.id === state.activeUserId) || null;
+  }
+  
+  function getTick(userId, problemId) {
+    return (state.ticks[userId] && state.ticks[userId][problemId]) || null;
+  }
+    
+  function setTick(userId, problemId, tick) {
+    if (!state.ticks[userId]) state.ticks[userId] = {};
+    state.ticks[userId][problemId] = tick;
+  }
+    
+  function clearTick(userId, problemId) {
+    if (state.ticks[userId]) delete state.ticks[userId][problemId];
+  }
+    
+  function loadTickForm() {
+    const u = getActiveUser();
+    const pid = state.currentProblemId;
+    tickProblemNameEl.textContent = (state.problems.find(p=>p.id===pid)?.name) || '(select a problem)';
+    if (!u || !pid) {
+	    tickSentEl.checked = false; tickOnsightEl.checked = false; tickFlashEl.checked = false;
+	    tickAttemptsEl.value = 0; tickSessionsEl.value = 0; tickDateEl.value = '';
+	    return;
+    }
+    const t = getTick(u.id, pid) || { sent:false, onsight:false, flash:false, attempts:0, sessions:0, date:'' };
+    tickSentEl.checked = !!t.sent;
+    tickOnsightEl.checked = !!t.onsight;
+    tickFlashEl.checked = !!t.flash;
+    tickAttemptsEl.value = Number.isFinite(t.attempts) ? t.attempts : 0;
+    tickSessionsEl.value = Number.isFinite(t.sessions) ? t.sessions : 0;
+    tickDateEl.value = t.date || '';
+  }
+  
+  function showProblem(p) {
+    if (!p) return;
+    
+    // Clear selections
+    state.selection.clear();
+    state.start.clear();
+    state.finish.clear();
+    if (state.sel && typeof state.sel === 'object') {
+      for (const k of Object.keys(state.sel)) state.sel[k].clear();
+    }
+    
+    // Load categories (new) or legacy fields (old)
+    if (p.categories && typeof p.categories === 'object') {
+      const cats = ['start','hands','feet','finish'];
+      for (const c of cats) {
+        const arr = p.categories[c] || [];
+        if (state.sel && state.sel[c]) {
+          for (const id of arr) state.sel[c].add(id);
+        }
+      }
+      for (const id of (p.categories.start  || [])) state.start.add(id);
+      for (const id of (p.categories.finish || [])) state.finish.add(id);
+      if (Array.isArray(p.categories.hands)) {
+        for (const id of p.categories.hands) state.selection.add(id);
+      }
+    } else {
+      if (Array.isArray(p.start))  for (const id of p.start)  state.start.add(id);
+      if (Array.isArray(p.finish)) for (const id of p.finish) state.finish.add(id);
+      if (Array.isArray(p.use))    for (const id of p.use)    state.selection.add(id);
+      if (state.sel && typeof state.sel === 'object') {
+        if (Array.isArray(p.start))  for (const id of p.start)  state.sel.start.add(id);
+        if (Array.isArray(p.finish)) for (const id of p.finish) state.sel.finish.add(id);
+        if (Array.isArray(p.use))    for (const id of p.use)    state.sel.hands.add(id);
+      }
+    }
+    
+    // UI fields
+    pbNameEl.value  = p.name || '';
+    pbColorEl.value = p.color || '#1e90ff';
+    pbGradeEl.value = p.grade || '';
+    if (typeof feetFollowEl !== 'undefined') {
+      feetFollowEl.checked = !!(p.rules && p.rules.feetFollow);
+    }
+    
+    // Current + remember per user
+    state.currentProblemId = p.id;
+    if (state.activeUserId) {
+      if (!state.lastViewedByUser) state.lastViewedByUser = {};
+      state.lastViewedByUser[state.activeUserId] = p.id;
+    }
+    
+    if (typeof loadTickForm === 'function') loadTickForm();
+    draw();
+  }
+  // --- Event wiring ---
+  imageLoader.addEventListener('change', (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      state.image = img; state.imgW = img.naturalWidth; state.imgH = img.naturalHeight;
+      fitImage(); draw();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
+  function fitImage(){
+    const scale = Math.min(canvas.width / state.imgW, canvas.height / state.imgH);
+    state.cam.s = scale;
+    state.cam.x = (canvas.width - state.imgW*scale)/2;
+    state.cam.y = (canvas.height - state.imgH*scale)/2;
+    draw();
+  }
+  fitBtn.addEventListener('click', fitImage);
+
+  modeEls.forEach(r=>{ r.addEventListener('change', ()=>{ state.mode = document.querySelector('input[name="mode"]:checked').value; canvas.style.cursor = (state.mode==='holds') ? 'crosshair' : 'pointer'; }); });
+  catEls.forEach(r => {
+    r.addEventListener('change', () => {
+      const picked = document.querySelector('input[name="cat"]:checked');
+      state.currentCat = picked ? picked.value : 'hands';
+    });
+  });
+  document.getElementById('showIds').addEventListener('change', e=>{ state.showIds = !!e.target.checked; draw(); });
+  document.getElementById('showRings').addEventListener('change', e=>{ state.showRings = !!e.target.checked; draw(); });
+  document.getElementById('dimImage').addEventListener('change', e=>{ state.dimImage = !!e.target.checked; draw(); });
+
+  // Mouse interactions
+  let isSpacePanning = false;
+
+  canvas.addEventListener('mousedown', (e)=>{
+    const pos = getMousePos(e);
+    if (isSpacePanning || e.button===1) {
+      state.pan.active = true;
+      state.pan.startX = pos.x - state.cam.x;
+      state.pan.startY = pos.y - state.cam.y;
+      return;
+    }
+    if (!state.image) return;
+    const imgPt = canvasToImg(pos.x, pos.y);
+    if (state.mode === 'holds') {
+      const hit = pickHold(imgPt);
+      if (hit) {
+        state.dragId = hit.id; // start dragging center
+      } else {
+        // create a new circular hold
+        const n = imgToNorm(imgPt.x, imgPt.y);
+        const defaultRadiusPx = Math.min(state.imgW, state.imgH) * 0.03; // ~3% of min dim
+        const hold = { id: state.nextHoldId++, x: clamp01(n.x), y: clamp01(n.y), r: pxToNormRadius(defaultRadiusPx) };
+        state.holds.push(hold);
+      }
+    } else {
+      // Problems mode: toggle selection on click if inside a hold ring
+      const hit = pickHold(imgPt);
+      if (hit) toggleCat(hit.id);
+    }
+    draw();
+  });
+
+  canvas.addEventListener('mousemove', (e)=>{
+    const pos = getMousePos(e);
+    const imgPt = canvasToImg(pos.x, pos.y);
+    if (state.pan.active) {
+      state.cam.x = pos.x - state.pan.startX;
+      state.cam.y = pos.y - state.pan.startY;
+      draw(); return;
+    }
+    if (!state.image) return;
+    // hover
+    const hit = pickHold(imgPt);
+    state.hoverId = hit ? hit.id : null;
+    // dragging center
+    if (state.dragId != null) {
+      const idx = state.holds.findIndex(h=>h.id===state.dragId);
+      if (idx>-1) {
+        const n = imgToNorm(imgPt.x, imgPt.y);
+        state.holds[idx].x = clamp01(n.x);
+        state.holds[idx].y = clamp01(n.y);
+      }
+    }
+    draw();
+  });
+
+  canvas.addEventListener('mouseup', ()=>{ state.pan.active = false; state.dragId = null; });
+
+  canvas.addEventListener('wheel', (e)=>{
+    if (!state.image) return;
+    // If hovering a hold in Holds mode, wheel = resize radius. Otherwise zoom.
+    const pos = getMousePos(e);
+    const imgPt = canvasToImg(pos.x, pos.y);
+    const hit = pickHold(imgPt);
+    if (state.mode==='holds' && hit) {
+      e.preventDefault();
+      const idx = state.holds.findIndex(h=>h.id===hit.id);
+      if (idx>-1){
+        const delta = -e.deltaY; // up increases
+        const rPx = normToPxRadius(state.holds[idx].r);
+        const newPx = clamp(rPx + delta*0.02, 6, minDim()*0.12); // limit radius
+        state.holds[idx].r = pxToNormRadius(newPx);
+        draw();
+      }
+      return;
+    }
+    // zoom around cursor
+    e.preventDefault();
+    const scaleFactor = Math.exp(-e.deltaY * 0.0015);
+    const before = canvasToImg(pos.x, pos.y);
+    state.cam.s = clamp(state.cam.s * scaleFactor, 0.1, 5);
+    const after = canvasToImg(pos.x, pos.y);
+    state.cam.x += (after.x - before.x) * state.cam.s;
+    state.cam.y += (after.y - before.y) * state.cam.s;
+    draw();
+  }, { passive:false });
+
+  window.addEventListener('keydown', (e)=>{
+    if (e.code === 'Space') { isSpacePanning = true; canvas.style.cursor='grab'; }
+    if (e.key === 'Delete' && state.mode==='holds' && state.hoverId!=null) {
+      state.holds = state.holds.filter(h=>h.id!==state.hoverId);
+      state.selection.delete(state.hoverId);
+      state.start.delete(state.hoverId);
+      state.finish.delete(state.hoverId);
+      state.hoverId = null; draw();
+    }
+    if (e.key.toLowerCase() === 'h') { document.querySelector('input[value="holds"]').checked = true; state.mode='holds'; canvas.style.cursor='crosshair'; }
+    if (e.key.toLowerCase() === 'p') { document.querySelector('input[value="problems"]').checked = true; state.mode='problems'; canvas.style.cursor='pointer'; }
+    if (e.key === '[' && state.hoverId!=null) resizeHover(-1);
+    if (e.key === ']' && state.hoverId!=null) resizeHover(+1);
+  });
+  window.addEventListener('keyup', (e)=>{ if (e.code === 'Space') { isSpacePanning = false; canvas.style.cursor = (state.mode==='holds')?'crosshair':'pointer'; } });
+
+  function resizeHover(dir){
+    const idx = state.holds.findIndex(h=>h.id===state.hoverId);
+    if (idx>-1){
+      const rPx = normToPxRadius(state.holds[idx].r);
+      const newPx = clamp(rPx + dir*2, 6, minDim()*0.12);
+      state.holds[idx].r = pxToNormRadius(newPx);
+      draw();
+    }
+  }
+
+  clearHoldsBtn.addEventListener('click', ()=>{
+    if (!confirm('Delete ALL holds?')) return;
+    state.holds = []; state.selection.clear(); state.start.clear(); state.finish.clear();
+    state.nextHoldId = 1; draw();
+  });
+  
+  addUserBtn.addEventListener('click', () => {
+    const name = (newUserNameEl.value || '').trim();
+    if (!name) { alert('Enter a name'); return; }
+    const u = { id: uuid(), name };
+    state.users.push(u);
+    state.activeUserId = u.id;
+    newUserNameEl.value = '';
+    renderUsers();
+  });
+
+  deleteUserBtn.addEventListener('click', () => {
+    if (!state.activeUserId) return;
+    const u = getActiveUser();
+    if (!u) return;
+    if (!confirm(`Delete user "${u.name}"?`)) return;
+    // remove user and their ticks
+    state.users = state.users.filter(x => x.id !== u.id);
+    delete state.ticks[u.id];
+    state.activeUserId = state.users[0]?.id || null;
+    renderUsers();
+    loadTickForm(); // clear tick panel if needed
+  });
+
+  userSelect.addEventListener('change', () => {
+    state.activeUserId = userSelect.value || null;
+  
+    const lastPid = state.lastViewedByUser[state.activeUserId];
+    if (lastPid) {
+      const last = state.problems.find(x => x.id === lastPid);
+      if (last) { 
+        showProblem(last); 
+        return;  // stop here if we successfully restored
+      }
+    }
+  
+    // If no remembered problem (or problem was deleted), just refresh tick panel
+    if (typeof loadTickForm === 'function') loadTickForm();
+  });
+
+
+  saveTickBtn.addEventListener('click', () => {
+    const u = getActiveUser();
+    const pid = state.currentProblemId;
+    if (!u || !pid) { alert('Pick a user and click Show on a problem first'); return; }
+    const t = {
+      sent: !!tickSentEl.checked,
+      onsight: !!tickOnsightEl.checked,
+      flash: !!tickFlashEl.checked,
+      attempts: Math.max(0, parseInt(tickAttemptsEl.value||'0', 10)),
+      sessions: Math.max(0, parseInt(tickSessionsEl.value||'0', 10)),
+      date: tickDateEl.value || ''
+    };
+    setTick(u.id, pid, t);
+    alert('Saved tick.');
+  });
+
+clearTickBtn.addEventListener('click', () => {
+  const u = getActiveUser();
+  const pid = state.currentProblemId;
+  if (!u || !pid) return;
+  clearTick(u.id, pid);
+  loadTickForm();
+});
+  
+
+  // Problem panel
+  function renderProblemList() {
+    problemListEl.innerHTML = '';
+    for (const p of state.problems) {
+      const li = document.createElement('li');
+      const left = document.createElement('div');
+      const right = document.createElement('div');
+      left.innerHTML = `<span class="pill" style="background:${p.color}22;border-color:${p.color}">${escapeHtml(p.name)}</span> <span class="muted">${p.grade || ''}</span>`;
+      const showBtn = document.createElement('button'); showBtn.className='btn'; showBtn.textContent='Show';
+      showBtn.onclick = () => showProblem(p);
+        
+      const delBtn = document.createElement('button'); delBtn.className='btn'; delBtn.textContent='Delete';
+      delBtn.onclick = () => { if (!confirm('Delete this problem?')) return; state.problems = state.problems.filter(q=>q.id!==p.id); renderProblemList(); };
+      right.appendChild(showBtn); right.appendChild(delBtn);
+      li.appendChild(left); li.appendChild(right);
+      problemListEl.appendChild(li);
+    }
+  }
+
+  clearSelectionBtn.addEventListener('click', ()=>{
+    state.selection.clear();
+    state.start.clear();
+    state.finish.clear();
+    for (const c of Object.keys(state.sel)) state.sel[c].clear();
+    draw();
+  });
+  markStartBtn.addEventListener('click', ()=>{ if (state.hoverId!=null) toggleSet(state.start, state.hoverId); draw(); });
+  markFinishBtn.addEventListener('click', ()=>{ if (state.hoverId!=null) toggleSet(state.finish, state.hoverId); draw(); });
+  saveProblemBtn.addEventListener('click', ()=>{
+    const name  = pbNameEl.value.trim() || `Problem ${state.problems.length+1}`;
+    const color = pbColorEl.value || '#1e90ff';
+    const grade = pbGradeEl.value.trim();
+    const rules = { feetFollow: !!feetFollowEl.checked };
+    
+    const start  = Array.from(state.sel.start.values()).sort((a,b)=>a-b);
+    const hands  = Array.from(state.sel.hands.values()).sort((a,b)=>a-b);
+    const feet   = Array.from(state.sel.feet.values()).sort((a,b)=>a-b);
+    const finish = Array.from(state.sel.finish.values()).sort((a,b)=>a-b);
+    
+    // Legacy fields for compatibility with your existing list UI
+    const use = hands.slice(); // treat “hands” as the old “use” set
+    
+    if (!(start.length || hands.length || feet.length || finish.length)) {
+      alert('Select at least one hold in any category'); return;
+    }
+    
+    const id = 'p_' + Math.random().toString(36).slice(2,9);
+    state.problems.push({
+      id, name, color, grade, rules,
+      // new structure
+      categories: { start, hands, feet, finish },
+      // legacy structure (so your existing Show works until we patch it below)
+      use, start, finish
+    });
+    renderProblemList();
+  });
+  
+  tickSentEl.addEventListener('change', () => {
+    if (tickSentEl.checked && !tickDateEl.value) {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      tickDateEl.value = `${yyyy}-${mm}-${dd}`;
+    }
+  });
+  
+
+  function toggleSet(set, val){ if(set.has(val)) set.delete(val); else set.add(val); }
+  function toggleCat(holdId){
+    const c = state.currentCat;
+    const set = state.sel[c];
+    if (set.has(holdId)) set.delete(holdId); else set.add(holdId);
+    
+    // keep old start/finish sets roughly in sync for legacy UI
+    if (c === 'start')  toggleSet(state.start, holdId);
+    if (c === 'finish') toggleSet(state.finish, holdId);
+    
+    draw();
+  }
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m])); }
+
+  // Storage
+  document.getElementById('saveLocal').addEventListener('click', ()=>{ localStorage.setItem('woody_state_circles', JSON.stringify(serialize())); alert('Saved to browser storage.'); });
+  document.getElementById('loadLocal').addEventListener('click', ()=>{
+    const raw = localStorage.getItem('woody_state_circles'); if (!raw) { alert('Nothing saved yet.'); return; }
+    hydrate(JSON.parse(raw)); renderProblemList(); draw();
+  });
+  document.getElementById('resetLocal').addEventListener('click', ()=>{ localStorage.removeItem('woody_state_circles'); alert('Cleared browser save.'); });
+  document.getElementById('exportJson').addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(serialize(), null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'woody_circles_export.json'; a.click(); URL.revokeObjectURL(url);
+  });
+  document.getElementById('importJson').addEventListener('change', (e)=>{
+    const f = e.target.files[0]; if (!f) return; const r = new FileReader();
+    r.onload = () => { try { const data = JSON.parse(r.result); hydrate(data); renderProblemList(); draw(); } catch(err) { alert('Invalid JSON'); } };
+    r.readAsText(f);
+  });
+
+  function serialize(){
+    return { wall: { imageMeta: { width: state.imgW, height: state.imgH } }, holds: state.holds, problems: state.problems, users: state.users, activeUserId: state.activeUserId, ticks: state.ticks, lastViewedByUser: state.lastViewedByUser, };
+  }
+  function hydrate(data){
+    // Holds
+    if (Array.isArray(data.holds)){
+      state.holds = data.holds.map(h=>({
+        id: h.id,
+        x: h.x,
+        y: h.y,
+        r: (typeof h.r === 'number' ? h.r : pxToNormRadius(20))
+      }));
+      state.nextHoldId = (state.holds.reduce((m,h)=>Math.max(m,h.id),0) || 0) + 1;
+    }
+  
+    // Problems
+    if (Array.isArray(data.problems)) state.problems = data.problems;
+  
+    // Users / ticks
+    if (Array.isArray(data.users)) state.users = data.users;
+    if (data.activeUserId) state.activeUserId = data.activeUserId;
+    if (data.ticks && typeof data.ticks === 'object') state.ticks = data.ticks;
+  
+    // NEW: remember last viewed problem per user
+    if (data.lastViewedByUser && typeof data.lastViewedByUser === 'object') {
+      state.lastViewedByUser = data.lastViewedByUser;
+    } else {
+      state.lastViewedByUser = state.lastViewedByUser || {};
+    }
+  
+    // Ensure there is at least one user and render the dropdown
+    if (typeof ensureActiveUser === 'function') ensureActiveUser();
+  
+    // Try to restore the active user's last viewed problem
+    const lastPid = state.lastViewedByUser && state.activeUserId
+      ? state.lastViewedByUser[state.activeUserId]
+      : null;
+  
+    if (lastPid) {
+      const last = state.problems.find(p => p.id === lastPid);
+      if (last && typeof showProblem === 'function') {
+        showProblem(last);
+      } else if (typeof loadTickForm === 'function') {
+        loadTickForm();
+      }
+    } else if (typeof loadTickForm === 'function') {
+      loadTickForm();
+    }
+  }
+
+
+  // --- Picking logic: inside a circle ---
+  function pickHold(imgPt){
+    let best=null, bestD=Infinity;
+    for (const h of state.holds){
+      const center = { x: h.x*state.imgW, y: h.y*state.imgH };
+      const d = distance(center, imgPt);
+      const r = normToPxRadius(h.r); // image px radius
+      if (d <= r * 1.05) { // small tolerance
+        if (d < bestD) { best = h; bestD = d; }
+      }
+    }
+    return best;
+  }
+
+  function getMousePos(e){ const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+
+  // initial draw
+  ensureActiveUser();
+  draw();
+})();
+</script>
+</body>
+</html>
