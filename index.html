@@ -34,6 +34,24 @@
   .muted { color:#888; }
   .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; border:1px solid #ddd; padding:1px 4px; border-radius:4px; }
   .warn { color:#a33; }
+  .version-badge {
+    margin-left:auto;
+    padding:2px 10px;
+    border-radius:999px;
+    background:#f2f2f2;
+    color:#555;
+    font-weight:600;
+    font-size:12px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  @media (max-width: 640px) {
+    .version-badge {
+      flex-basis:100%;
+      margin-left:0;
+      text-align:right;
+    }
+  }
 </style>
 </head>
 <body>
@@ -42,8 +60,8 @@
   <button class="btn" id="fitBtn" title="Fit image to canvas">Fit</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
   <span class="muted">Resize hold: hover + mouse wheel (<span class="kbd">[</span>/<span class="kbd">]</span> keys too)</span>
+  <span id="versionBadge" class="version-badge"></span>
 </header>
-
 <main>
   <div id="left">
     <canvas id="c" width="1200" height="800"></canvas>
@@ -150,6 +168,8 @@
 
 <script>
 (() => {
+  const APP_VERSION = 'v1.0.0'; // Increment when you ship an update
+
   // --- State ---
   const state = {
     image: null, imgW: 0, imgH: 0,
@@ -182,6 +202,8 @@
 
   // --- DOM ---
   const canvas = document.getElementById('c');
+  const versionBadge = document.getElementById('versionBadge');
+  if (versionBadge) versionBadge.textContent = 'Version ' + APP_VERSION;
   const ctx = canvas.getContext('2d');
   const imageLoader = document.getElementById('imageLoader');
   const fitBtn = document.getElementById('fitBtn');
@@ -416,11 +438,38 @@
   imageLoader.addEventListener('change', (e) => {
     const file = e.target.files[0]; if (!file) return;
     const img = new Image();
-    img.onload = () => {
-      state.image = img; state.imgW = img.naturalWidth; state.imgH = img.naturalHeight;
-      fitImage(); draw();
+
+    const applyImage = () => {
+      state.image = img;
+      state.imgW = img.naturalWidth;
+      state.imgH = img.naturalHeight;
+      fitImage();
+      draw();
     };
-    img.src = URL.createObjectURL(file);
+
+    img.onload = () => {
+      applyImage();
+      if (img.dataset.objectUrl) {
+        URL.revokeObjectURL(img.dataset.objectUrl);
+        delete img.dataset.objectUrl;
+      }
+    };
+
+    img.onerror = () => {
+      alert('Could not load that image file. Please try a different photo.');
+    };
+
+    const needsDataUrlFallback = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    if (!needsDataUrlFallback && window.URL && URL.createObjectURL) {
+      const blobUrl = URL.createObjectURL(file);
+      img.dataset.objectUrl = blobUrl;
+      img.src = blobUrl;
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => { img.src = reader.result; };
+      reader.readAsDataURL(file);
+    }
   });
 
   function fitImage(){
@@ -803,7 +852,15 @@ clearTickBtn.addEventListener('click', () => {
     return best;
   }
 
-  function getMousePos(e){ const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; }
+  function getMousePos(e){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width ? canvas.width / rect.width : 1;
+    const scaleY = rect.height ? canvas.height / rect.height : 1;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  }
   // --- Touch to mouse mapping (simple) ---
   function firstTouch(e){ return (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]); }
   function touchPos(t){
@@ -835,3 +892,13 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
