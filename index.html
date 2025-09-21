@@ -45,6 +45,10 @@
     white-space:nowrap;
     flex-shrink:0;
   }
+  body.sidebar-hidden #right { display:none; }
+  body.sidebar-hidden #left { width:100%; }
+  body.sidebar-hidden canvas { width:100%; height:auto; }
+
   @media (max-width: 640px) {
     .version-badge {
       flex-basis:100%;
@@ -58,6 +62,7 @@
 <header>
   <input type="file" id="imageLoader" accept="image/*" />
   <button class="btn" id="fitBtn" title="Fit image to canvas">Fit</button>
+  <button class="btn" id="sidebarToggle" type="button">Hide Sidebar</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
   <span class="muted">Resize hold: hover + mouse wheel (<span class="kbd">[</span>/<span class="kbd">]</span> keys too)</span>
   <span id="versionBadge" class="version-badge"></span>
@@ -168,7 +173,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.0.0'; // Increment when you ship an update
+  const APP_VERSION = 'v1.1.0'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -197,12 +202,14 @@
     showIds: true,
     showRings: true,
     dimImage: false,
+    sidebarHidden: false,
 	lastViewedByUser: {},   // { [userId]: problemId }
   };
 
   // --- DOM ---
   const canvas = document.getElementById('c');
   const versionBadge = document.getElementById('versionBadge');
+  const sidebarToggle = document.getElementById('sidebarToggle');
   if (versionBadge) versionBadge.textContent = 'Version ' + APP_VERSION;
   const ctx = canvas.getContext('2d');
   const imageLoader = document.getElementById('imageLoader');
@@ -473,13 +480,35 @@
   });
 
   function fitImage(){
+    if (!state.imgW || !state.imgH) return;
     const scale = Math.min(canvas.width / state.imgW, canvas.height / state.imgH);
     state.cam.s = scale;
     state.cam.x = (canvas.width - state.imgW*scale)/2;
     state.cam.y = (canvas.height - state.imgH*scale)/2;
     draw();
   }
+
+  function applySidebarState(options = {}) {
+    const refit = !!options.refit;
+    document.body.classList.toggle('sidebar-hidden', !!state.sidebarHidden);
+    if (sidebarToggle) {
+      sidebarToggle.textContent = state.sidebarHidden ? 'Show Sidebar' : 'Hide Sidebar';
+      sidebarToggle.setAttribute('aria-pressed', state.sidebarHidden ? 'true' : 'false');
+    }
+    if (refit && state.image) {
+      fitImage();
+    } else {
+      draw();
+    }
+  }
+
   fitBtn.addEventListener('click', fitImage);
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+      state.sidebarHidden = !state.sidebarHidden;
+      applySidebarState({ refit: state.sidebarHidden });
+    });
+  }
 
   modeEls.forEach(r=>{ r.addEventListener('change', ()=>{ state.mode = document.querySelector('input[name="mode"]:checked').value; canvas.style.cursor = (state.mode==='holds') ? 'crosshair' : 'pointer'; }); });
   catEls.forEach(r => {
@@ -887,11 +916,19 @@ clearTickBtn.addEventListener('click', () => {
 
   // initial draw
   ensureActiveUser();
-  draw();
+  applySidebarState();
 })();
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
