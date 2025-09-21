@@ -156,6 +156,12 @@
 
     <fieldset>
       <legend>Storage</legend>
+      <div class="row" id="syncModeRow">
+        <strong>Mode:</strong>
+        <label class="row"><input type="radio" name="syncMode" value="local" checked> Local</label>
+        <label class="row"><input type="radio" name="syncMode" value="online"> Online</label>
+        <span id="syncStatus" class="muted" style="margin-left:auto"></span>
+      </div>
       <div class="row">
         <button class="btn" id="saveLocal">Save to Browser</button>
         <button class="btn" id="loadLocal">Load</button>
@@ -167,13 +173,58 @@
       </div>
     </fieldset>
 
-    <div class="muted">This version ignores any pegboard/T-nut grid and lets you circle screw-in holds anywhere.</div>
+    <div class="muted">Free to use.</div>
   </aside>
 </main>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+  import { getAnalytics, isSupported } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAWNyBcxmu_fjVO2XcYa2gBDuybrX6W-bM",
+    authDomain: "woodiemapper.firebaseapp.com",
+    projectId: "woodiemapper",
+    storageBucket: "woodiemapper.firebasestorage.app",
+    messagingSenderId: "168849318295",
+    appId: "1:168849318295:web:bdad6497950be97b5064d2",
+    measurementId: "G-YT92KPVRC9"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  (async () => {
+    try {
+      if (await isSupported()) {
+        getAnalytics(app);
+      }
+    } catch (err) {
+      console.warn('Firebase analytics unavailable', err);
+    }
+  })();
+
+  window.firebaseServices = { app, db, doc, getDoc, setDoc, deleteDoc };
+
+  const supabaseConfig = window.supabaseConfig;
+  if (supabaseConfig && supabaseConfig.url && supabaseConfig.anonKey) {
+    const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+      auth: { persistSession: false }
+    });
+    window.supabaseClient = supabase;
+    window.supabaseStorageBucket = supabaseConfig.storageBucket || 'boards';
+  } else {
+    console.warn('Supabase config missing or incomplete; online storage disabled.');
+    window.supabaseClient = null;
+  }
+</script>
+
+
 <script>
 (() => {
-  const APP_VERSION = 'v1.1.0'; // Increment when you ship an update
+  const APP_VERSION = 'v1.3.0'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -203,6 +254,11 @@
     showRings: true,
     dimImage: false,
     sidebarHidden: false,
+    syncMode: 'local',
+    boardImagePath: null,
+    boardImageUrl: null,
+    imageFile: null,
+
 	lastViewedByUser: {},   // { [userId]: problemId }
   };
 
@@ -229,6 +285,11 @@
   const showIdsEl = document.getElementById('showIds');
   const showRingsEl = document.getElementById('showRings');
   const dimImageEl = document.getElementById('dimImage');
+  const syncModeEls = document.querySelectorAll('input[name="syncMode"]');
+  const syncStatusEl = document.getElementById('syncStatus');
+  const saveBtn = document.getElementById('saveLocal');
+  const loadBtn = document.getElementById('loadLocal');
+  const resetBtn = document.getElementById('resetLocal');
   const catEls = document.querySelectorAll('input[name="cat"]');
   // Users DOM
   const userSelect      = document.getElementById('userSelect');
@@ -445,6 +506,8 @@
   imageLoader.addEventListener('change', (e) => {
     const file = e.target.files[0]; if (!file) return;
     const img = new Image();
+    state.imageFile = file;
+    state.boardImageUrl = null;
 
     const applyImage = () => {
       state.image = img;
@@ -502,6 +565,200 @@
     }
   }
 
+  function getCloudHandles(){
+    const firebase = window.firebaseServices || {};
+    const supabase = window.supabaseClient || null;
+    const bucket = window.supabaseStorageBucket || null;
+    return { firebase, supabase, bucket };
+  }
+
+  function isCloudReady(){
+    const { firebase, supabase, bucket } = getCloudHandles();
+    return !!(firebase && firebase.db && firebase.setDoc && firebase.getDoc && firebase.doc && supabase && bucket);
+  }
+
+  function updateSyncModeRadios(value){
+    syncModeEls.forEach(r => { r.checked = (r.value === value); });
+  }
+
+  function setSyncStatus(message){
+    if (syncStatusEl) {
+      syncStatusEl.textContent = message;
+    }
+  }
+
+  function toggleSyncButtons(disabled){
+    [saveBtn, loadBtn, resetBtn].forEach(btn => {
+      if (btn) btn.disabled = !!disabled;
+    });
+  }
+
+  function updateSyncUI(){
+    if (!saveBtn || !loadBtn || !resetBtn) return;
+    if (state.syncMode === 'local') {
+      saveBtn.textContent = 'Save to Browser';
+      loadBtn.textContent = 'Load from Browser';
+      resetBtn.textContent = 'Reset Browser';
+      setSyncStatus('Local mode');
+    } else {
+      saveBtn.textContent = 'Save to Cloud';
+      loadBtn.textContent = 'Load from Cloud';
+      resetBtn.textContent = 'Reset Cloud';
+      setSyncStatus(isCloudReady() ? 'Cloud ready' : 'Cloud unavailable');
+    }
+  }
+
+  function buildBoardImagePath(file){
+    const name = (file && file.name) ? file.name.replace(/[^a-zA-Z0-9.-]/g, '_') : 'board-image.png';
+    const extMatch = name.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch ? '.' + extMatch[1].toLowerCase() : '.png';
+    const base = name.replace(/\.[^.]+$/, '');
+    const userSegment = state.activeUserId || 'default';
+    const timestamp = Date.now();
+    return `boards/${userSegment}/${base}_${timestamp}${ext}`;
+  }
+
+  async function loadBoardImageFromUrl(url){
+    if (!url) return;
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        state.image = img;
+        state.imageFile = null;
+        state.imgW = img.naturalWidth;
+        state.imgH = img.naturalHeight;
+        fitImage();
+        resolve();
+      };
+      img.onerror = () => {
+        reject(new Error('Failed to load board image from remote storage.'));
+      };
+      img.src = url;
+    });
+  }
+
+  async function saveCloud(){
+    if (!isCloudReady()) {
+      alert('Cloud services are not configured.');
+      return;
+    }
+    const hasImageOnFile = !!(state.boardImagePath && state.boardImageUrl);
+    if (!state.imageFile && !hasImageOnFile) {
+      alert('Please choose a board image before saving online.');
+      return;
+    }
+    toggleSyncButtons(true);
+    setSyncStatus('Saving to cloud...');
+    try {
+      const { firebase, supabase, bucket } = getCloudHandles();
+      let path = state.boardImagePath || null;
+
+      if (state.imageFile) {
+        if (!path) path = buildBoardImagePath(state.imageFile);
+        const upload = await supabase.storage.from(bucket).upload(path, state.imageFile, { upsert: true });
+        if (upload.error) throw upload.error;
+        const { data: publicData, error: publicErr } = supabase.storage.from(bucket).getPublicUrl(path);
+        if (publicErr) throw publicErr;
+        state.boardImagePath = path;
+        state.boardImageUrl = publicData?.publicUrl || null;
+      } else if (path) {
+        state.boardImagePath = path;
+      }
+
+      const payload = serialize();
+      payload.boardImage = state.boardImageUrl ? { path: state.boardImagePath, url: state.boardImageUrl } : null;
+      payload.updatedAt = Date.now();
+
+      const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
+      await firebase.setDoc(boardDoc, payload, { merge: true });
+
+      setSyncStatus('Cloud save complete');
+      alert('Saved to cloud.');
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('Cloud save failed');
+      alert('Failed to save to cloud: ' + (err.message || err));
+    } finally {
+      toggleSyncButtons(false);
+    }
+  }
+  async function loadCloud(){
+    if (!isCloudReady()) {
+      alert('Cloud services are not configured.');
+      return;
+    }
+    toggleSyncButtons(true);
+    setSyncStatus('Loading from cloud...');
+    try {
+      const { firebase } = getCloudHandles();
+      const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
+      const snap = await firebase.getDoc(boardDoc);
+      if (!snap.exists()) {
+        setSyncStatus('No cloud data yet');
+        alert('No cloud save found.');
+        return;
+      }
+      const data = snap.data();
+      hydrate(data);
+      renderProblemList();
+      if (data.boardImage && data.boardImage.url) {
+        state.boardImagePath = data.boardImage.path || null;
+        state.boardImageUrl = data.boardImage.url || null;
+        try {
+          await loadBoardImageFromUrl(state.boardImageUrl);
+        } catch (imgErr) {
+          console.warn('Unable to load board image from cloud', imgErr);
+        }
+      } else {
+        state.image = null;
+        state.imageFile = null;
+        state.imgW = 0;
+        state.imgH = 0;
+        draw();
+      }
+      setSyncStatus('Cloud data loaded');
+      alert('Loaded from cloud.');
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('Cloud load failed');
+      alert('Failed to load from cloud: ' + (err.message || err));
+    } finally {
+      toggleSyncButtons(false);
+    }
+  }
+
+  async function resetCloud(){
+    if (!isCloudReady()) {
+      alert('Cloud services are not configured.');
+      return;
+    }
+    if (!confirm('Delete the cloud board data?')) return;
+    toggleSyncButtons(true);
+    setSyncStatus('Clearing cloud...');
+    try {
+      const { firebase, supabase, bucket } = getCloudHandles();
+      const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
+      await firebase.deleteDoc(boardDoc);
+      if (state.boardImagePath) {
+        const removal = await supabase.storage.from(bucket).remove([state.boardImagePath]);
+        if (removal.error) {
+          console.warn('Board image not removed:', removal.error);
+        } else {
+          state.boardImagePath = null;
+          state.boardImageUrl = null;
+        }
+      }
+      setSyncStatus('Cloud data cleared');
+      alert('Cloud data cleared.');
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('Cloud reset failed');
+      alert('Failed to clear cloud data: ' + (err.message || err));
+    } finally {
+      toggleSyncButtons(false);
+    }
+  }
   fitBtn.addEventListener('click', fitImage);
   if (sidebarToggle) {
     sidebarToggle.addEventListener('click', () => {
@@ -517,6 +774,23 @@
       state.currentCat = picked ? picked.value : 'hands';
     });
   });
+  syncModeEls.forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) return;
+      if (radio.value === 'online' && !isCloudReady()) {
+        alert('Cloud services are not configured. Staying in local mode.');
+        state.syncMode = 'local';
+        updateSyncModeRadios('local');
+        updateSyncUI();
+        return;
+      }
+      state.syncMode = radio.value;
+      updateSyncUI();
+    });
+  });
+
+  updateSyncModeRadios(state.syncMode);
+  updateSyncUI();
   document.getElementById('showIds').addEventListener('change', e=>{ state.showIds = !!e.target.checked; draw(); });
   document.getElementById('showRings').addEventListener('change', e=>{ state.showRings = !!e.target.checked; draw(); });
   document.getElementById('dimImage').addEventListener('change', e=>{ state.dimImage = !!e.target.checked; draw(); });
@@ -798,29 +1072,22 @@ clearTickBtn.addEventListener('click', () => {
   }
   function escapeHtml(s){ return s.replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m])); }
 
-  // Storage
-  document.getElementById('saveLocal').addEventListener('click', ()=>{ localStorage.setItem('woody_state_circles', JSON.stringify(serialize())); alert('Saved to browser storage.'); });
-  document.getElementById('loadLocal').addEventListener('click', ()=>{
-    const raw = localStorage.getItem('woody_state_circles'); if (!raw) { alert('Nothing saved yet.'); return; }
-    hydrate(JSON.parse(raw)); renderProblemList(); draw();
-  });
-  document.getElementById('resetLocal').addEventListener('click', ()=>{ localStorage.removeItem('woody_state_circles'); alert('Cleared browser save.'); });
-  document.getElementById('exportJson').addEventListener('click', ()=>{
-    const blob = new Blob([JSON.stringify(serialize(), null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'woody_circles_export.json'; a.click(); URL.revokeObjectURL(url);
-  });
-  document.getElementById('importJson').addEventListener('change', (e)=>{
-    const f = e.target.files[0]; if (!f) return; const r = new FileReader();
-    r.onload = () => { try { const data = JSON.parse(r.result); hydrate(data); renderProblemList(); draw(); } catch(err) { alert('Invalid JSON'); } };
-    r.readAsText(f);
-  });
-
   function serialize(){
-    return { wall: { imageMeta: { width: state.imgW, height: state.imgH } }, holds: state.holds, problems: state.problems, users: state.users, activeUserId: state.activeUserId, ticks: state.ticks, lastViewedByUser: state.lastViewedByUser, };
+    return {
+      wall: { imageMeta: { width: state.imgW, height: state.imgH } },
+      holds: state.holds,
+      problems: state.problems,
+      users: state.users,
+      activeUserId: state.activeUserId,
+      ticks: state.ticks,
+      lastViewedByUser: state.lastViewedByUser,
+      boardImage: state.boardImageUrl ? { path: state.boardImagePath, url: state.boardImageUrl } : null,
+    };
   }
+
   function hydrate(data){
-    // Holds
+    if (!data || typeof data !== 'object') return;
+
     if (Array.isArray(data.holds)){
       state.holds = data.holds.map(h=>({
         id: h.id,
@@ -830,30 +1097,34 @@ clearTickBtn.addEventListener('click', () => {
       }));
       state.nextHoldId = (state.holds.reduce((m,h)=>Math.max(m,h.id),0) || 0) + 1;
     }
-  
-    // Problems
+
     if (Array.isArray(data.problems)) state.problems = data.problems;
-  
-    // Users / ticks
+
     if (Array.isArray(data.users)) state.users = data.users;
     if (data.activeUserId) state.activeUserId = data.activeUserId;
     if (data.ticks && typeof data.ticks === 'object') state.ticks = data.ticks;
-  
-    // NEW: remember last viewed problem per user
+
+    if (data.boardImage && typeof data.boardImage === 'object') {
+      state.boardImagePath = data.boardImage.path || null;
+      state.boardImageUrl = data.boardImage.url || null;
+    } else {
+      state.boardImagePath = null;
+      state.boardImageUrl = null;
+    }
+    state.imageFile = null;
+
     if (data.lastViewedByUser && typeof data.lastViewedByUser === 'object') {
       state.lastViewedByUser = data.lastViewedByUser;
     } else {
       state.lastViewedByUser = state.lastViewedByUser || {};
     }
-  
-    // Ensure there is at least one user and render the dropdown
+
     if (typeof ensureActiveUser === 'function') ensureActiveUser();
-  
-    // Try to restore the active user's last viewed problem
+
     const lastPid = state.lastViewedByUser && state.activeUserId
       ? state.lastViewedByUser[state.activeUserId]
       : null;
-  
+
     if (lastPid) {
       const last = state.problems.find(p => p.id === lastPid);
       if (last && typeof showProblem === 'function') {
@@ -866,6 +1137,85 @@ clearTickBtn.addEventListener('click', () => {
     }
   }
 
+  // Storage
+  saveBtn.addEventListener('click', async () => {
+    if (state.syncMode === 'local') {
+      localStorage.setItem('woody_state_circles', JSON.stringify(serialize()));
+      setSyncStatus('Saved locally');
+      alert('Saved to browser storage.');
+    } else {
+      await saveCloud();
+    }
+  });
+
+  loadBtn.addEventListener('click', async () => {
+    if (state.syncMode === 'local') {
+      const raw = localStorage.getItem('woody_state_circles');
+      if (!raw) { alert('Nothing saved yet.'); return; }
+      const data = JSON.parse(raw);
+      hydrate(data);
+      renderProblemList();
+      draw();
+      if (data.boardImage && data.boardImage.url) {
+        state.boardImagePath = data.boardImage.path || null;
+        state.boardImageUrl = data.boardImage.url || null;
+        try {
+          await loadBoardImageFromUrl(state.boardImageUrl);
+        } catch (err) {
+          console.warn('Unable to load stored board image', err);
+        }
+      }
+      setSyncStatus('Loaded local data');
+    } else {
+      await loadCloud();
+    }
+  });
+
+  resetBtn.addEventListener('click', async () => {
+    if (state.syncMode === 'local') {
+      localStorage.removeItem('woody_state_circles');
+      setSyncStatus('Local data cleared');
+      alert('Cleared browser save.');
+    } else {
+      await resetCloud();
+    }
+  });
+  document.getElementById('exportJson').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(serialize(), null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'woody_circles_export.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('importJson').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = async () => {
+      try {
+        const data = JSON.parse(r.result);
+        hydrate(data);
+        renderProblemList();
+        draw();
+        if (data.boardImage && data.boardImage.url) {
+          state.boardImagePath = data.boardImage.path || null;
+          state.boardImageUrl = data.boardImage.url || null;
+          try {
+            await loadBoardImageFromUrl(state.boardImageUrl);
+          } catch (err) {
+            console.warn('Unable to load imported board image', err);
+          }
+        }
+      } catch(err) {
+        alert('Invalid JSON');
+      }
+    };
+    r.readAsText(f);
+    e.target.value = '';
+  });
 
   // --- Picking logic: inside a circle ---
   function pickHold(imgPt){
@@ -921,6 +1271,21 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
