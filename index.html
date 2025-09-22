@@ -232,7 +232,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.3.1'; // Increment when you ship an update
+  const APP_VERSION = 'v1.3.2'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -266,6 +266,7 @@
     boardImagePath: null,
     boardImageUrl: null,
     imageFile: null,
+    boardImageName: null,
 
 	lastViewedByUser: {},   // { [userId]: problemId }
   };
@@ -516,6 +517,8 @@
     const img = new Image();
     state.imageFile = file;
     state.boardImageUrl = null;
+    state.boardImagePath = null;
+    state.boardImageName = file.name || null;
 
     const applyImage = () => {
       state.image = img;
@@ -636,6 +639,12 @@
         state.imageFile = null;
         state.imgW = img.naturalWidth;
         state.imgH = img.naturalHeight;
+        if (!state.boardImageName && state.boardImagePath) {
+          state.boardImageName = state.boardImagePath.split('/').slice(-1)[0];
+        }
+        if (!state.boardImageName && url) {
+          try { state.boardImageName = new URL(url).pathname.split('/').slice(-1)[0]; } catch (_) {}
+        }
         fitImage();
         resolve();
       };
@@ -670,16 +679,18 @@
         if (publicErr) throw publicErr;
         state.boardImagePath = path;
         state.boardImageUrl = publicData?.publicUrl || null;
+        state.boardImageName = state.imageFile.name || state.boardImageName || (path ? path.split("/").slice(-1)[0] : null);
       } else if (path) {
         state.boardImagePath = path;
+        state.boardImageName = state.boardImageName || (path ? path.split("/").slice(-1)[0] : null);
       }
 
       const payload = serialize();
-      payload.boardImage = state.boardImageUrl ? { path: state.boardImagePath, url: state.boardImageUrl } : null;
       payload.updatedAt = Date.now();
 
       const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
       await firebase.setDoc(boardDoc, payload, { merge: true });
+      state.imageFile = null;
 
       setSyncStatus('Cloud save complete');
       alert('Saved to cloud.');
@@ -690,7 +701,7 @@
     } finally {
       toggleSyncButtons(false);
     }
-  }
+
   async function loadCloud(){
     if (!isCloudReady()) {
       alert('Cloud services are not configured.');
@@ -703,6 +714,9 @@
       const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
       const snap = await firebase.getDoc(boardDoc);
       if (!snap.exists()) {
+        state.boardImagePath = null;
+        state.boardImageUrl = null;
+        state.boardImageName = null;
         setSyncStatus('No cloud data yet');
         alert('No cloud save found.');
         return;
@@ -713,6 +727,8 @@
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
         state.boardImageUrl = data.boardImage.url || null;
+        state.boardImageName = data.boardImage.name || state.boardImageName;
+        state.boardImageName = data.boardImage.name || null;
         try {
           await loadBoardImageFromUrl(state.boardImageUrl);
         } catch (imgErr) {
@@ -757,6 +773,7 @@
           state.boardImageUrl = null;
         }
       }
+      state.boardImageName = null;
       setSyncStatus('Cloud data cleared');
       alert('Cloud data cleared.');
     } catch (err) {
@@ -1080,7 +1097,16 @@ clearTickBtn.addEventListener('click', () => {
   }
   function escapeHtml(s){ return s.replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m])); }
 
+
   function serialize(){
+    const boardImage = (state.boardImagePath || state.boardImageUrl || state.boardImageName || (state.imageFile && state.imageFile.name))
+      ? {
+          path: state.boardImagePath || null,
+          url: state.boardImageUrl || null,
+          name: state.boardImageName || (state.imageFile && state.imageFile.name) || null
+        }
+      : null;
+
     return {
       wall: { imageMeta: { width: state.imgW, height: state.imgH } },
       holds: state.holds,
@@ -1089,7 +1115,7 @@ clearTickBtn.addEventListener('click', () => {
       activeUserId: state.activeUserId,
       ticks: state.ticks,
       lastViewedByUser: state.lastViewedByUser,
-      boardImage: state.boardImageUrl ? { path: state.boardImagePath, url: state.boardImageUrl } : null,
+      boardImage
     };
   }
 
@@ -1113,11 +1139,13 @@ clearTickBtn.addEventListener('click', () => {
     if (data.ticks && typeof data.ticks === 'object') state.ticks = data.ticks;
 
     if (data.boardImage && typeof data.boardImage === 'object') {
-      state.boardImagePath = data.boardImage.path || null;
-      state.boardImageUrl = data.boardImage.url || null;
+        state.boardImagePath = data.boardImage.path || null;
+        state.boardImageUrl = data.boardImage.url || null;
+        state.boardImageName = data.boardImage.name || null;
     } else {
       state.boardImagePath = null;
       state.boardImageUrl = null;
+      state.boardImageName = null;
     }
     state.imageFile = null;
 
@@ -1167,6 +1195,7 @@ clearTickBtn.addEventListener('click', () => {
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
         state.boardImageUrl = data.boardImage.url || null;
+        state.boardImageName = data.boardImage.name || state.boardImageName;
         try {
           await loadBoardImageFromUrl(state.boardImageUrl);
         } catch (err) {
@@ -1279,6 +1308,10 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
+
+
 
 
 
