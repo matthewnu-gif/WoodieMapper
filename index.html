@@ -4,11 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Woody Wall Mapper — Circle Holds</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest.txt">
 <meta name="theme-color" content="#111111">
 <script>
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+    window.addEventListener('load', () => { const swUrl = new URL('sw.js', window.location.href); navigator.serviceWorker.register(swUrl.href); });
   }
 </script>
 
@@ -232,7 +232,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.3.3'; // Increment when you ship an update
+  const APP_VERSION = 'v1.3.4'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -701,6 +701,7 @@
     } finally {
       toggleSyncButtons(false);
     }
+  }
 
   async function loadCloud(){
     if (!isCloudReady()) {
@@ -1307,6 +1308,7 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
 
 
 
