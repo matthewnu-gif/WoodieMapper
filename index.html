@@ -232,7 +232,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.3.2'; // Increment when you ship an update
+  const APP_VERSION = 'v1.3.3'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -678,11 +678,11 @@
         const { data: publicData, error: publicErr } = supabase.storage.from(bucket).getPublicUrl(path);
         if (publicErr) throw publicErr;
         state.boardImagePath = path;
-        state.boardImageUrl = publicData?.publicUrl || null;
-        state.boardImageName = state.imageFile.name || state.boardImageName || (path ? path.split("/").slice(-1)[0] : null);
+        state.boardImageUrl = (publicData && publicData.publicUrl) || null;
+        state.boardImageName = state.imageFile.name || state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
       } else if (path) {
         state.boardImagePath = path;
-        state.boardImageName = state.boardImageName || (path ? path.split("/").slice(-1)[0] : null);
+        state.boardImageName = state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
       }
 
       const payload = serialize();
@@ -727,7 +727,6 @@
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
         state.boardImageUrl = data.boardImage.url || null;
-        state.boardImageName = data.boardImage.name || state.boardImageName;
         state.boardImageName = data.boardImage.name || null;
         try {
           await loadBoardImageFromUrl(state.boardImageUrl);
@@ -1195,7 +1194,7 @@ clearTickBtn.addEventListener('click', () => {
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
         state.boardImageUrl = data.boardImage.url || null;
-        state.boardImageName = data.boardImage.name || state.boardImageName;
+        state.boardImageName = data.boardImage.name || null;
         try {
           await loadBoardImageFromUrl(state.boardImageUrl);
         } catch (err) {
@@ -1308,6 +1307,8 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
 
 
 
