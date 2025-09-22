@@ -232,7 +232,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.3.4'; // Increment when you ship an update
+  const APP_VERSION = 'v1.3.5'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -626,7 +626,7 @@
     const base = name.replace(/\.[^.]+$/, '');
     const userSegment = state.activeUserId || 'default';
     const timestamp = Date.now();
-    return `boards/${userSegment}/${base}_${timestamp}${ext}`;
+    return `${userSegment}/${base}_${timestamp}${ext}`;
   }
 
   async function loadBoardImageFromUrl(url){
@@ -1308,6 +1308,8 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
 
 
 
