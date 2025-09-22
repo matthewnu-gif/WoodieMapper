@@ -189,6 +189,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
   import { getAnalytics, isSupported } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
   import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
   import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
   const firebaseConfig = {
@@ -214,6 +215,16 @@
     }
   })();
 
+  const auth = getAuth(app);
+
+  (async () => {
+    try {
+      await signInAnonymously(auth);
+    } catch (err) {
+      console.warn('Anonymous auth failed', err);
+    }
+  })();
+
   window.firebaseServices = { app, db, doc, getDoc, setDoc, deleteDoc };
 
   const supabaseConfig = window.supabaseConfig;
@@ -232,7 +243,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.3.5'; // Increment when you ship an update
+  const APP_VERSION = 'v1.3.6'; // Increment when you ship an update
 
   // --- State ---
   const state = {
