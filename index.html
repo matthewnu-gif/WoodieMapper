@@ -1,3 +1,4 @@
+﻿
 ﻿<!doctype html>
 <html lang="en">
 <head>
@@ -187,6 +188,10 @@
         <button class="btn" id="loadCloudId">Load from Cloud (ID)</button>
       </div>
       <div class="row" style="margin-top:6px">
+        <select id="boardList" style="flex:1; min-width:160px"><option value="">No cloud boards available</option></select>
+        <button class="btn" id="refreshBoards">Refresh Boards</button>
+      </div>
+      <div class="row" style="margin-top:6px">
         <button class="btn" id="exportJson">Export JSON</button>
         <input type="file" id="importJson" accept="application/json" />
       </div>
@@ -199,7 +204,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
   import { getAnalytics, isSupported } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
-  import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
   import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -230,7 +235,7 @@
       }
     })();
 
-    firebaseServices = { app, db, doc, getDoc, setDoc, deleteDoc };
+    firebaseServices = { app, db, doc, getDoc, setDoc, deleteDoc, collection, getDocs };
   } else {
     console.warn('Firebase config missing or incomplete; online sync disabled.');
   }
@@ -254,7 +259,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.4.2'; // Increment when you ship an update
+  const APP_VERSION = 'v1.4.3'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -325,10 +330,13 @@
   const boardIdInput = document.getElementById('boardId');
   const saveCloudIdBtn = document.getElementById('saveCloudId');
   const loadCloudIdBtn = document.getElementById('loadCloudId');
+  const boardListSelect = document.getElementById('boardList');
+  const refreshBoardsBtn = document.getElementById('refreshBoards');
   const catEls = document.querySelectorAll('input[name="cat"]');
   if (boardIdInput) {
     boardIdInput.value = state.activeBoardId || '';
   }
+
   // Users DOM
   const userSelect      = document.getElementById('userSelect');
   const addUserBtn      = document.getElementById('addUserBtn');
@@ -438,6 +446,38 @@
     normalized = normalized.replace(/-+/g, '-');
     normalized = normalized.replace(/^[-_]+/, '').replace(/[-_]+$/, '');
     return normalized.slice(0, 80);
+  }
+
+  function setBoardListOptions(ids) {
+    if (!boardListSelect) return;
+    const list = Array.isArray(ids) ? [...ids].filter(Boolean) : [];
+    list.sort((a, b) => a.localeCompare(b));
+    boardListSelect.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = list.length ? 'Select a board' : 'No cloud boards available';
+    boardListSelect.appendChild(placeholder);
+    for (const id of list) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = id;
+      boardListSelect.appendChild(opt);
+    }
+  }
+
+  function ensureBoardOption(id) {
+    if (!boardListSelect || !id) return;
+    for (const opt of boardListSelect.options) {
+      if (opt.value === id) {
+        boardListSelect.value = id;
+        return;
+      }
+    }
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = id;
+    boardListSelect.appendChild(opt);
+    boardListSelect.value = id;
   }
   function ensureActiveUser() {
     if (!state.users.length) {
@@ -637,7 +677,7 @@
   }
 
   function toggleSyncButtons(disabled){
-    [saveBtn, loadBtn, resetBtn, saveCloudIdBtn, loadCloudIdBtn].forEach(btn => {
+    [saveBtn, loadBtn, resetBtn, saveCloudIdBtn, loadCloudIdBtn, refreshBoardsBtn].forEach(btn => {
       if (btn) btn.disabled = !!disabled;
     });
   }
@@ -693,6 +733,25 @@
     });
   }
 
+
+  async function fetchBoardList() {
+    if (!isCloudReady()) return [];
+    const { firebase } = getCloudHandles();
+    if (!firebase || !firebase.db || !firebase.collection || !firebase.getDocs) return [];
+    const boardsRef = firebase.collection(firebase.db, 'boards');
+    const snapshot = await firebase.getDocs(boardsRef);
+    const ids = [];
+    if (snapshot && Array.isArray(snapshot.docs)) {
+      for (const docSnap of snapshot.docs) {
+        if (docSnap && typeof docSnap.id === 'string' && docSnap.id) {
+          ids.push(docSnap.id);
+        }
+      }
+    }
+    setBoardListOptions(ids);
+    return ids;
+  }
+
   async function saveCloud(boardId = state.activeBoardId || 'primary') {
     if (!isCloudReady()) {
       alert('Cloud services are not configured.');
@@ -728,6 +787,7 @@
       if (boardIdInput) {
         boardIdInput.value = targetId;
       }
+      ensureBoardOption(targetId);
 
       const payload = serialize();
       payload.boardId = targetId;
@@ -736,6 +796,14 @@
       const boardDoc = firebase.doc(firebase.db, 'boards', targetId);
       await firebase.setDoc(boardDoc, payload, { merge: true });
       state.imageFile = null;
+      if (boardListSelect) {
+        const ids = await fetchBoardList().catch(() => []);
+        if (ids.includes(targetId)) {
+          boardListSelect.value = targetId;
+        } else {
+          ensureBoardOption(targetId);
+        }
+      }
 
       setSyncStatus(`Cloud save complete (${targetId})`);
       alert(`Saved to cloud. Board ID: ${targetId}`);
@@ -773,6 +841,15 @@
       state.activeBoardId = targetId;
       if (boardIdInput) {
         boardIdInput.value = targetId;
+      }
+      ensureBoardOption(targetId);
+      if (boardListSelect) {
+        const ids = await fetchBoardList().catch(() => []);
+        if (ids.includes(targetId)) {
+          boardListSelect.value = targetId;
+        } else {
+          ensureBoardOption(targetId);
+        }
       }
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
@@ -823,6 +900,12 @@
         }
       }
       state.boardImageName = null;
+      if (boardListSelect) {
+        const ids = await fetchBoardList().catch(() => []);
+        if (boardIdInput && boardIdInput.value === targetId && !ids.includes(targetId)) {
+          boardListSelect.value = "";
+        }
+      }
       setSyncStatus(`Cloud data cleared (${targetId})`);
       alert(`Cloud data cleared. Board ID: ${targetId}`);
     } catch (err) {
@@ -1205,6 +1288,13 @@ clearTickBtn.addEventListener('click', () => {
     if (boardIdInput) {
       boardIdInput.value = state.activeBoardId || '';
     }
+    if (boardListSelect) {
+      if (state.activeBoardId) {
+        ensureBoardOption(state.activeBoardId);
+      } else {
+        boardListSelect.value = '';
+      }
+    }
 
     if (data.lastViewedByUser && typeof data.lastViewedByUser === 'object') {
       state.lastViewedByUser = data.lastViewedByUser;
@@ -1240,6 +1330,49 @@ clearTickBtn.addEventListener('click', () => {
     });
   }
 
+  if (boardListSelect) {
+    setBoardListOptions([]);
+    boardListSelect.addEventListener('change', () => {
+      const selected = normalizeBoardId(boardListSelect.value);
+      if (!selected) return;
+      if (boardIdInput) {
+        boardIdInput.value = selected;
+      }
+      state.activeBoardId = selected;
+    });
+  }
+
+  if (refreshBoardsBtn && boardListSelect) {
+    refreshBoardsBtn.addEventListener('click', async () => {
+      if (!isCloudReady()) {
+        alert('Cloud services are not configured.');
+        return;
+      }
+      toggleSyncButtons(true);
+      setSyncStatus('Fetching board list...');
+      try {
+        const ids = await fetchBoardList();
+        if (boardIdInput && boardIdInput.value) {
+          const normalized = normalizeBoardId(boardIdInput.value);
+          if (normalized) {
+            boardListSelect.value = ids.includes(normalized) ? normalized : '';
+          }
+        }
+        if (!ids.length) {
+          setSyncStatus('No cloud boards available');
+        } else {
+          setSyncStatus(`Found ${ids.length} cloud boards`);
+        }
+      } catch (err) {
+        console.error(err);
+        setSyncStatus('Board list fetch failed');
+        alert('Failed to fetch cloud boards: ' + (err.message || err));
+      } finally {
+        toggleSyncButtons(false);
+      }
+    });
+  }
+
   if (saveCloudIdBtn) {
     saveCloudIdBtn.addEventListener('click', async () => {
       if (!isCloudReady()) {
@@ -1256,7 +1389,6 @@ clearTickBtn.addEventListener('click', () => {
       await saveCloud(targetId);
     });
   }
-
   if (loadCloudIdBtn) {
     loadCloudIdBtn.addEventListener('click', async () => {
       if (!isCloudReady()) {
@@ -1421,73 +1553,3 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
