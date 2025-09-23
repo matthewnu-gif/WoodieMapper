@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Woody Wall Mapper — Circle Holds</title>
+<title>Woody Wall Mapper â€” Circle Holds</title>
 <link rel="manifest" href="manifest.webmanifest.txt">
 <meta name="theme-color" content="#111111">
 <script>
@@ -12,6 +12,15 @@
   }
 </script>
 
+<script>
+  window.__USE_CONFIG_EXAMPLE__ = false;
+</script>
+<script src="./config.js" onerror="window.__USE_CONFIG_EXAMPLE__ = true;"></script>
+<script>
+  if (window.__USE_CONFIG_EXAMPLE__ || typeof window.supabaseConfig === 'undefined' || typeof window.firebaseConfig === 'undefined') {
+    document.write('<script src="./config.example.js"><\/script>');
+  }
+</script>
 <style>
   :root { --pad: 12px; --ui: 320px; }
   * { box-sizing: border-box; }
@@ -91,7 +100,7 @@
       <div class="muted">Wheel over a hold to change its radius. Defaults scale with image size.</div>
       <button class="btn" id="clearHolds">Clear all holds</button>
 	  <div class="row">
-        <button class="btn" id="radiusMinus">− Radius</button>
+        <button class="btn" id="radiusMinus">âˆ’ Radius</button>
         <button class="btn" id="radiusPlus">+ Radius</button>
       </div>
     </fieldset>
@@ -168,6 +177,16 @@
         <button class="btn" id="resetLocal">Reset</button>
       </div>
       <div class="row" style="margin-top:6px">
+        <label class="row" style="gap:6px; flex:1; align-items:center;">
+          <span>Board ID</span>
+          <input id="boardId" type="text" placeholder="e.g. woody-demo" style="flex:1; min-width:160px" />
+        </label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="saveCloudId">Save to Cloud (ID)</button>
+        <button class="btn" id="loadCloudId">Load from Cloud (ID)</button>
+      </div>
+      <div class="row" style="margin-top:6px">
         <button class="btn" id="exportJson">Export JSON</button>
         <input type="file" id="importJson" accept="application/json" />
       </div>
@@ -177,14 +196,6 @@
   </aside>
 </main>
 
-<script>
-  window.supabaseConfig = {
-    url: 'https://ytdultztmwgcuenfqlrp.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0ZHVsdHp0bXdnY3VlbmZxbHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0ODU3NDMsImV4cCI6MjA3NDA2MTc0M30.7JMHAHM0ioGgPNJ2cC7w2BJrZp_xYFAvmAHsJNZKi2c',
-    storageBucket: 'boards'
-  };
-</script>
-
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
   import { getAnalytics, isSupported } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
@@ -192,42 +203,41 @@
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
   import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAWNyBcxmu_fjVO2XcYa2gBDuybrX6W-bM",
-    authDomain: "woodiemapper.firebaseapp.com",
-    projectId: "woodiemapper",
-    storageBucket: "woodiemapper.firebasestorage.app",
-    messagingSenderId: "168849318295",
-    appId: "1:168849318295:web:bdad6497950be97b5064d2",
-    measurementId: "G-YT92KPVRC9"
-  };
+  const firebaseConfig = window.firebaseConfig || null;
+  let firebaseServices = null;
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  if (firebaseConfig && firebaseConfig.apiKey) {
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-  (async () => {
-    try {
-      if (await isSupported()) {
-        getAnalytics(app);
+    (async () => {
+      try {
+        if (await isSupported()) {
+          getAnalytics(app);
+        }
+      } catch (err) {
+        console.warn('Firebase analytics unavailable', err);
       }
-    } catch (err) {
-      console.warn('Firebase analytics unavailable', err);
-    }
-  })();
+    })();
 
-  const auth = getAuth(app);
+    const auth = getAuth(app);
 
-  (async () => {
-    try {
-      await signInAnonymously(auth);
-    } catch (err) {
-      console.warn('Anonymous auth failed', err);
-    }
-  })();
+    (async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (err) {
+        console.warn('Anonymous auth failed', err);
+      }
+    })();
 
-  window.firebaseServices = { app, db, doc, getDoc, setDoc, deleteDoc };
+    firebaseServices = { app, db, doc, getDoc, setDoc, deleteDoc };
+  } else {
+    console.warn('Firebase config missing or incomplete; online sync disabled.');
+  }
 
-  const supabaseConfig = window.supabaseConfig;
+  window.firebaseServices = firebaseServices;
+
+  const supabaseConfig = window.supabaseConfig || null;
   if (supabaseConfig && supabaseConfig.url && supabaseConfig.anonKey) {
     const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
       auth: { persistSession: false }
@@ -237,13 +247,14 @@
   } else {
     console.warn('Supabase config missing or incomplete; online storage disabled.');
     window.supabaseClient = null;
+    window.supabaseStorageBucket = null;
   }
 </script>
 
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.3.6'; // Increment when you ship an update
+  const APP_VERSION = 'v1.4.1'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -278,6 +289,7 @@
     boardImageUrl: null,
     imageFile: null,
     boardImageName: null,
+    activeBoardId: 'primary',
 
 	lastViewedByUser: {},   // { [userId]: problemId }
   };
@@ -310,7 +322,13 @@
   const saveBtn = document.getElementById('saveLocal');
   const loadBtn = document.getElementById('loadLocal');
   const resetBtn = document.getElementById('resetLocal');
+  const boardIdInput = document.getElementById('boardId');
+  const saveCloudIdBtn = document.getElementById('saveCloudId');
+  const loadCloudIdBtn = document.getElementById('loadCloudId');
   const catEls = document.querySelectorAll('input[name="cat"]');
+  if (boardIdInput) {
+    boardIdInput.value = state.activeBoardId || '';
+  }
   // Users DOM
   const userSelect      = document.getElementById('userSelect');
   const addUserBtn      = document.getElementById('addUserBtn');
@@ -411,7 +429,16 @@
     }
   }
   function uuid() { return Math.random().toString(36).slice(2,10); }
-
+  function randomBoardId() { return 'woody-' + Math.random().toString(36).slice(2,10); }
+  function normalizeBoardId(value) {
+    if (!value) return '';
+    let normalized = value.trim();
+    normalized = normalized.replace(/\s+/g, '-');
+    normalized = normalized.replace(/[^a-zA-Z0-9-_]+/g, '-');
+    normalized = normalized.replace(/-+/g, '-');
+    normalized = normalized.replace(/^[-_]+/, '').replace(/[-_]+$/, '');
+    return normalized.slice(0, 80);
+  }
   function ensureActiveUser() {
     if (!state.users.length) {
       const u = { id: uuid(), name: 'Guest' };
@@ -610,7 +637,7 @@
   }
 
   function toggleSyncButtons(disabled){
-    [saveBtn, loadBtn, resetBtn].forEach(btn => {
+    [saveBtn, loadBtn, resetBtn, saveCloudIdBtn, loadCloudIdBtn].forEach(btn => {
       if (btn) btn.disabled = !!disabled;
     });
   }
@@ -666,18 +693,19 @@
     });
   }
 
-  async function saveCloud(){
+  async function saveCloud(boardId = state.activeBoardId || 'primary') {
     if (!isCloudReady()) {
       alert('Cloud services are not configured.');
       return;
     }
+    const targetId = normalizeBoardId(boardId) || 'primary';
     const hasImageOnFile = !!(state.boardImagePath && state.boardImageUrl);
     if (!state.imageFile && !hasImageOnFile) {
       alert('Please choose a board image before saving online.');
       return;
     }
     toggleSyncButtons(true);
-    setSyncStatus('Saving to cloud...');
+    setSyncStatus(`Saving to cloud (${targetId})...`);
     try {
       const { firebase, supabase, bucket } = getCloudHandles();
       let path = state.boardImagePath || null;
@@ -696,46 +724,56 @@
         state.boardImageName = state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
       }
 
+      state.activeBoardId = targetId;
+      if (boardIdInput) {
+        boardIdInput.value = targetId;
+      }
+
       const payload = serialize();
+      payload.boardId = targetId;
       payload.updatedAt = Date.now();
 
-      const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
+      const boardDoc = firebase.doc(firebase.db, 'boards', targetId);
       await firebase.setDoc(boardDoc, payload, { merge: true });
       state.imageFile = null;
 
-      setSyncStatus('Cloud save complete');
-      alert('Saved to cloud.');
+      setSyncStatus(`Cloud save complete (${targetId})`);
+      alert(`Saved to cloud. Board ID: ${targetId}`);
     } catch (err) {
       console.error(err);
-      setSyncStatus('Cloud save failed');
+      setSyncStatus(`Cloud save failed (${targetId})`);
       alert('Failed to save to cloud: ' + (err.message || err));
     } finally {
       toggleSyncButtons(false);
     }
   }
-
-  async function loadCloud(){
+  async function loadCloud(boardId = state.activeBoardId || 'primary') {
     if (!isCloudReady()) {
       alert('Cloud services are not configured.');
       return;
     }
+    const targetId = normalizeBoardId(boardId) || 'primary';
     toggleSyncButtons(true);
-    setSyncStatus('Loading from cloud...');
+    setSyncStatus(`Loading from cloud (${targetId})...`);
     try {
       const { firebase } = getCloudHandles();
-      const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
+      const boardDoc = firebase.doc(firebase.db, 'boards', targetId);
       const snap = await firebase.getDoc(boardDoc);
       if (!snap.exists()) {
         state.boardImagePath = null;
         state.boardImageUrl = null;
         state.boardImageName = null;
-        setSyncStatus('No cloud data yet');
-        alert('No cloud save found.');
+        setSyncStatus(`No cloud data for ${targetId}`);
+        alert(`No cloud save found for board ID: ${targetId}.`);
         return;
       }
       const data = snap.data();
       hydrate(data);
       renderProblemList();
+      state.activeBoardId = targetId;
+      if (boardIdInput) {
+        boardIdInput.value = targetId;
+      }
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
         state.boardImageUrl = data.boardImage.url || null;
@@ -752,28 +790,28 @@
         state.imgH = 0;
         draw();
       }
-      setSyncStatus('Cloud data loaded');
-      alert('Loaded from cloud.');
+      setSyncStatus(`Cloud data loaded (${targetId})`);
+      alert(`Loaded from cloud. Board ID: ${targetId}`);
     } catch (err) {
       console.error(err);
-      setSyncStatus('Cloud load failed');
+      setSyncStatus(`Cloud load failed (${targetId})`);
       alert('Failed to load from cloud: ' + (err.message || err));
     } finally {
       toggleSyncButtons(false);
     }
   }
-
-  async function resetCloud(){
+  async function resetCloud(boardId = state.activeBoardId || 'primary') {
     if (!isCloudReady()) {
       alert('Cloud services are not configured.');
       return;
     }
-    if (!confirm('Delete the cloud board data?')) return;
+    const targetId = normalizeBoardId(boardId) || 'primary';
+    if (!confirm(`Delete the cloud board data for "${targetId}"?`)) return;
     toggleSyncButtons(true);
-    setSyncStatus('Clearing cloud...');
+    setSyncStatus(`Clearing cloud (${targetId})...`);
     try {
       const { firebase, supabase, bucket } = getCloudHandles();
-      const boardDoc = firebase.doc(firebase.db, 'boards', 'primary');
+      const boardDoc = firebase.doc(firebase.db, 'boards', targetId);
       await firebase.deleteDoc(boardDoc);
       if (state.boardImagePath) {
         const removal = await supabase.storage.from(bucket).remove([state.boardImagePath]);
@@ -785,11 +823,11 @@
         }
       }
       state.boardImageName = null;
-      setSyncStatus('Cloud data cleared');
-      alert('Cloud data cleared.');
+      setSyncStatus(`Cloud data cleared (${targetId})`);
+      alert(`Cloud data cleared. Board ID: ${targetId}`);
     } catch (err) {
       console.error(err);
-      setSyncStatus('Cloud reset failed');
+      setSyncStatus(`Cloud reset failed (${targetId})`);
       alert('Failed to clear cloud data: ' + (err.message || err));
     } finally {
       toggleSyncButtons(false);
@@ -1066,7 +1104,7 @@ clearTickBtn.addEventListener('click', () => {
     const finish = Array.from(state.sel.finish.values()).sort((a,b)=>a-b);
     
     // Legacy fields for compatibility with your existing list UI
-    const use = hands.slice(); // treat “hands” as the old “use” set
+    const use = hands.slice(); // treat â€œhandsâ€ as the old â€œuseâ€ set
     
     if (!(start.length || hands.length || feet.length || finish.length)) {
       alert('Select at least one hold in any category'); return;
@@ -1126,6 +1164,7 @@ clearTickBtn.addEventListener('click', () => {
       activeUserId: state.activeUserId,
       ticks: state.ticks,
       lastViewedByUser: state.lastViewedByUser,
+      boardId: state.activeBoardId || null,
       boardImage
     };
   }
@@ -1160,6 +1199,13 @@ clearTickBtn.addEventListener('click', () => {
     }
     state.imageFile = null;
 
+    if (typeof data.boardId === 'string' && data.boardId.trim()) {
+      state.activeBoardId = normalizeBoardId(data.boardId);
+    }
+    if (boardIdInput) {
+      boardIdInput.value = state.activeBoardId || '';
+    }
+
     if (data.lastViewedByUser && typeof data.lastViewedByUser === 'object') {
       state.lastViewedByUser = data.lastViewedByUser;
     } else {
@@ -1184,6 +1230,50 @@ clearTickBtn.addEventListener('click', () => {
     }
   }
 
+  if (boardIdInput) {
+    boardIdInput.addEventListener('blur', () => {
+      const normalized = normalizeBoardId(boardIdInput.value);
+      boardIdInput.value = normalized;
+      if (normalized) {
+        state.activeBoardId = normalized;
+      }
+    });
+  }
+
+  if (saveCloudIdBtn) {
+    saveCloudIdBtn.addEventListener('click', async () => {
+      if (!isCloudReady()) {
+        alert('Cloud services are not configured.');
+        return;
+      }
+      let targetId = normalizeBoardId(boardIdInput ? boardIdInput.value : '');
+      if (!targetId) {
+        targetId = randomBoardId();
+      }
+      if (boardIdInput) {
+        boardIdInput.value = targetId;
+      }
+      await saveCloud(targetId);
+    });
+  }
+
+  if (loadCloudIdBtn) {
+    loadCloudIdBtn.addEventListener('click', async () => {
+      if (!isCloudReady()) {
+        alert('Cloud services are not configured.');
+        return;
+      }
+      const targetId = normalizeBoardId(boardIdInput ? boardIdInput.value : '');
+      if (!targetId) {
+        alert('Enter a board ID to load.');
+        return;
+      }
+      if (boardIdInput) {
+        boardIdInput.value = targetId;
+      }
+      await loadCloud(targetId);
+    });
+  }
   // Storage
   saveBtn.addEventListener('click', async () => {
     if (state.syncMode === 'local') {
@@ -1191,7 +1281,11 @@ clearTickBtn.addEventListener('click', () => {
       setSyncStatus('Saved locally');
       alert('Saved to browser storage.');
     } else {
-      await saveCloud();
+      const targetId = (boardIdInput ? normalizeBoardId(boardIdInput.value) : '') || state.activeBoardId || 'primary';
+      if (boardIdInput && targetId) {
+        boardIdInput.value = targetId;
+      }
+      await saveCloud(targetId);
     }
   });
 
@@ -1215,7 +1309,11 @@ clearTickBtn.addEventListener('click', () => {
       }
       setSyncStatus('Loaded local data');
     } else {
-      await loadCloud();
+      const targetId = (boardIdInput ? normalizeBoardId(boardIdInput.value) : '') || state.activeBoardId || 'primary';
+      if (boardIdInput && targetId) {
+        boardIdInput.value = targetId;
+      }
+      await loadCloud(targetId);
     }
   });
 
@@ -1225,7 +1323,11 @@ clearTickBtn.addEventListener('click', () => {
       setSyncStatus('Local data cleared');
       alert('Cleared browser save.');
     } else {
-      await resetCloud();
+      const targetId = (boardIdInput ? normalizeBoardId(boardIdInput.value) : '') || state.activeBoardId || 'primary';
+      if (boardIdInput && targetId) {
+        boardIdInput.value = targetId;
+      }
+      await resetCloud(targetId);
     }
   });
   document.getElementById('exportJson').addEventListener('click', () => {
@@ -1319,6 +1421,33 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
