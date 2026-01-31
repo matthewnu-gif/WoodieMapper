@@ -280,7 +280,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.4'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.5'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -1029,31 +1029,54 @@ state.problemBuilder = createBuilderState();
     try {
       const { firebase, supabase, bucket } = getCloudHandles();
       let path = state.boardImagePath || null;
+      let boardImageUploadError = null;
 
       if (activeImageFile) {
         if (!path) path = buildBoardImagePath(activeImageFile);
         const uploadOptions = { upsert: true, contentType: activeImageFile.type || 'image/png' };
-        let upload;
+        const storage = supabase.storage.from(bucket);
+        const attemptUpload = async payload => storage.upload(path, payload, uploadOptions);
+        let upload = null;
         try {
-          upload = await supabase.storage.from(bucket).upload(path, activeImageFile, uploadOptions);
+          upload = await attemptUpload(activeImageFile);
         } catch (blobErr) {
           console.warn('Supabase upload failed for Blob payload, retrying with ArrayBuffer', blobErr);
           if (activeImageFile.arrayBuffer) {
-            const buffer = await activeImageFile.arrayBuffer();
-            upload = await supabase.storage.from(bucket).upload(path, buffer, uploadOptions);
+            try {
+              const buffer = await activeImageFile.arrayBuffer();
+              upload = await attemptUpload(buffer);
+            } catch (bufferErr) {
+              boardImageUploadError = bufferErr;
+            }
           } else {
-            throw blobErr;
+            boardImageUploadError = blobErr;
           }
         }
-        if (upload.error) throw upload.error;
-        const { data: publicData, error: publicErr } = supabase.storage.from(bucket).getPublicUrl(path);
-        if (publicErr) throw publicErr;
-        state.boardImagePath = path;
-        state.boardImageUrl = (publicData && publicData.publicUrl) || null;
-        state.boardImageName = activeImageFile.name || state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
+        if (!boardImageUploadError) {
+          if (upload && upload.error) {
+            boardImageUploadError = upload.error;
+          } else {
+            const { data: publicData, error: publicErr } = storage.getPublicUrl(path);
+            if (publicErr) {
+              boardImageUploadError = publicErr;
+            } else {
+              state.boardImagePath = path;
+              state.boardImageUrl = (publicData && publicData.publicUrl) || null;
+              state.boardImageName = activeImageFile.name || state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
+            }
+          }
+        }
+        if (boardImageUploadError) {
+          state.boardImagePath = null;
+          state.boardImageUrl = null;
+          state.boardImageName = activeImageFile.name || state.boardImageName || null;
+        }
       } else if (path) {
         state.boardImagePath = path;
         state.boardImageName = state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
+      } else {
+        state.boardImagePath = null;
+        state.boardImageUrl = null;
       }
 
       state.activeBoardId = targetId;
@@ -1078,8 +1101,13 @@ state.problemBuilder = createBuilderState();
         }
       }
 
-      setSyncStatus(`Cloud save complete (${targetId})`);
-      alert(`Saved to cloud. Board ID: ${targetId}`);
+      if (boardImageUploadError) {
+        setSyncStatus(`Cloud save complete (${targetId}, image skipped)`);
+        alert(`Saved board data to cloud, but the board image could not be uploaded: ${boardImageUploadError.message || boardImageUploadError}`);
+      } else {
+        setSyncStatus(`Cloud save complete (${targetId})`);
+        alert(`Saved to cloud. Board ID: ${targetId}`);
+      }
     } catch (err) {
       console.error(err);
       setSyncStatus(`Cloud save failed (${targetId})`);
