@@ -103,12 +103,12 @@
       <div>Total: <span id="holdCount">0</span></div>
       <div class="muted">Wheel over a hold to change its radius. Defaults scale with image size.</div>
       <button class="btn" id="clearHolds">Clear all holds</button>
-	  <div class="row">
+      <div class="row">
         <button class="btn" id="radiusMinus">- Radius</button>
         <button class="btn" id="radiusPlus">+ Radius</button>
       </div>
     </fieldset>
-	<fieldset id="usersPanel">
+    <fieldset id="usersPanel">
       <legend>Users</legend>
       <div class="row">
         <select id="userSelect" style="flex:1; min-width:160px"></select>
@@ -127,26 +127,27 @@
         <label class="row">Colour <input id="pbColor" type="color" value="#1e90ff" /></label>
         <label class="row">Grade <input id="pbGrade" type="text" placeholder="e.g. 6B" style="width:90px" /></label>
       </div>
-	  <div class="row" style="margin-top:6px">
-		<strong>Category:</strong>
-		<label class="row"><input type="radio" name="cat" value="start"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#22c55e"></span> Start</label>
-		<label class="row"><input type="radio" name="cat" value="hands" checked> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3b82f6"></span> Hands</label>
-		<label class="row"><input type="radio" name="cat" value="feet"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#eab308"></span> Feet</label>
-		<label class="row"><input type="radio" name="cat" value="finish"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ef4444"></span> Finish</label>
-	  </div>
+      <div class="row" style="margin-top:6px">
+        <strong>Category:</strong>
+        <label class="row"><input type="radio" name="cat" value="start"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#22c55e"></span> Start</label>
+        <label class="row"><input type="radio" name="cat" value="hands" checked> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3b82f6"></span> Hands</label>
+        <label class="row"><input type="radio" name="cat" value="feet"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#eab308"></span> Feet</label>
+        <label class="row"><input type="radio" name="cat" value="finish"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ef4444"></span> Finish</label>
+      </div>
       <label><input type="checkbox" id="feetFollow" checked /> Feet follow</label>
-      <div class="row">
-        <button class="btn" id="markStart">nothing</button>
-        <button class="btn" id="markFinish">nothing</button>
+      <div class="row" id="gridFeetOptions" style="gap:12px; flex-wrap:wrap">
+        <label><input type="checkbox" id="gridFeetPinkFeel" /> Pink Feel</label>
+        <label><input type="checkbox" id="gridFeetBlueFeet" /> Blue Feet</label>
+        <label><input type="checkbox" id="gridFeetBlackFeet" /> Black Feet</label>
       </div>
       <div class="row" style="margin-top:6px">
         <button class="btn" id="saveProblem">Save problem</button>
         <button class="btn" id="clearSelection">Clear selection</button>
       </div>
-	  <div id="tickPanel" style="margin-top:8px; border:1px solid #eee; padding:8px; border-radius:8px;">
+      <div id="tickPanel" style="margin-top:8px; border:1px solid #eee; padding:8px; border-radius:8px;">
         <div class="row" style="justify-content:space-between">
           <strong>Tick for user:</strong>
-          <span id="tickProblemName" class="muted">(select a problem)</span>
+          <span id="tickProblemName" class="muted">(select a problem or circuit)</span>
         </div>
         <div class="row" style="margin-top:6px">
           <label><input type="checkbox" id="tickSent"> Sent</label>
@@ -282,23 +283,22 @@
     pan: { active: false, x:0, y:0, startX:0, startY:0 },
     cam: { x:0, y:0, s: 1 }, // pan & zoom
     hoverId: null,
-	selectedHoldId: null,
+    selectedHoldId: null,
     dragId: null,
     nextHoldId: 1,
     // problem building
-	sel: { start: new Set(), hands: new Set(), feet: new Set(), finish: new Set() },
-	currentCat: 'hands',
-    selection: new Set(),
-    start: new Set(),
-    finish: new Set(),
+    currentCat: 'hands',
+    problemBuilder: null,
+    circuitBuilder: null,
     problems: [],
-	circuits: [],
-	circuitSel: [],
-	activeCircuitId: null,
-	// users & ticks
+    circuits: [],
+    circuitSel: [],
+    activeCircuitId: null,
+    // users & ticks
     users: [],               // [{id, name}]
     activeUserId: null,      // current user id
     currentProblemId: null,  // last "Show" pressed
+    currentItemType: 'problem',
     ticks: {},               // { [userId]: { [problemId]: { sent, onsight, flash, attempts, sessions, date } } }
     // UI toggles
     showIds: true,
@@ -312,9 +312,146 @@
     boardImageName: null,
     activeBoardId: 'primary',
 
-	lastViewedByUser: {},   // { [userId]: problemId }
+    lastViewedByUser: {},   // { [userId]: "type:id" }
   };
 
+    function createBuilderState() {
+    return {
+      categories: {
+        start: new Set(),
+        hands: new Set(),
+        feet: new Set(),
+        finish: new Set(),
+      },
+      selection: new Set(),
+      start: new Set(),
+      finish: new Set(),
+    };
+  }
+
+  function resetBuilder(builder) {
+    if (!builder) return;
+    builder.selection.clear();
+    builder.start.clear();
+    builder.finish.clear();
+    for (const key of Object.keys(builder.categories)) {
+      builder.categories[key].clear();
+    }
+  }
+
+  function useBuilder(mode) {
+    const builder = mode === 'circuits' ? state.circuitBuilder : state.problemBuilder;
+    state.sel = builder.categories;
+    state.selection = builder.selection;
+    state.start = builder.start;
+    state.finish = builder.finish;
+  }
+
+  function getBuilder(mode = state.mode) {
+    return mode === 'circuits' ? state.circuitBuilder : state.problemBuilder;
+  }
+
+  function syncBuilderDerivedSets(builder) {
+    if (!builder) return;
+    builder.start.clear();
+    builder.finish.clear();
+    builder.selection.clear();
+    builder.categories.start.forEach(id => builder.start.add(id));
+    builder.categories.finish.forEach(id => builder.finish.add(id));
+    builder.categories.hands.forEach(id => builder.selection.add(id));
+  }
+
+
+  function populateBuilderFromCategories(builder, sourceCategories = {}) {
+    if (!builder) return;
+    resetBuilder(builder);
+    for (const key of Object.keys(builder.categories)) {
+      const arr = Array.isArray(sourceCategories[key]) ? sourceCategories[key] : [];
+      for (const id of arr) builder.categories[key].add(id);
+    }
+    syncBuilderDerivedSets(builder);
+  }
+
+  function loadProblemIntoBuilder(problem) {
+    const builder = state.problemBuilder;
+    if (!builder) return;
+    if (!problem) {
+      resetBuilder(builder);
+      return;
+    }
+    if (problem.categories && typeof problem.categories === 'object') {
+      populateBuilderFromCategories(builder, problem.categories);
+    } else {
+      const legacy = {
+        start: Array.isArray(problem.start) ? problem.start : [],
+        finish: Array.isArray(problem.finish) ? problem.finish : [],
+        hands: Array.isArray(problem.use) ? problem.use : (Array.isArray(problem.hands) ? problem.hands : []),
+        feet: Array.isArray(problem.feet) ? problem.feet : [],
+      };
+      populateBuilderFromCategories(builder, legacy);
+    }
+  }
+
+  function loadCircuitIntoBuilder(circuit) {
+    const builder = state.circuitBuilder;
+    if (!builder) return;
+    if (!circuit) {
+      resetBuilder(builder);
+      return;
+    }
+      name: name || `Circuit ${state.circuits.length + 1}`,
+      use: categories.hands ? [...categories.hands] : [],
+    };
+    if (circuit.categories && typeof circuit.categories === 'object') {
+      populateBuilderFromCategories(builder, circuit.categories);
+    } else {
+      const legacy = {
+        start: Array.isArray(circuit.start) ? circuit.start : [],
+        finish: Array.isArray(circuit.finish) ? circuit.finish : [],
+        hands: Array.isArray(circuit.use) ? circuit.use : (Array.isArray(circuit.hands) ? circuit.hands : []),
+        feet: Array.isArray(circuit.feet) ? circuit.feet : [],
+      };
+      if (!legacy.hands.length && Array.isArray(circuit.holds)) {
+        legacy.hands = [...new Set(circuit.holds)];
+      }
+      populateBuilderFromCategories(builder, legacy);
+    }
+  }
+
+  function parseLastViewedEntry(entry) {
+    if (!entry) return { type: null, id: null };
+    let type = 'problem';
+    let id = null;
+    if (typeof entry === 'string') {
+      if (entry.includes(':')) {
+        const parts = entry.split(':');
+        type = parts.shift() || 'problem';
+        id = parts.join(':') || null;
+      } else {
+        id = entry;
+      }
+    } else if (typeof entry === 'object') {
+      type = entry.type || 'problem';
+      id = entry.id || null;
+    }
+    return { type, id };
+  }
+
+  function setCurrentItem(type, id) {
+    state.currentProblemId = id || null;
+    state.currentItemType = type || 'problem';
+    if (state.activeUserId) {
+      if (!state.lastViewedByUser) state.lastViewedByUser = {};
+      if (state.currentProblemId) {
+        state.lastViewedByUser[state.activeUserId] = `${state.currentItemType}:${state.currentProblemId}`;
+      } else {
+        delete state.lastViewedByUser[state.activeUserId];
+      }
+    }
+  }
+state.problemBuilder = createBuilderState();
+  state.circuitBuilder = createBuilderState();
+  useBuilder('problems');
   // --- DOM ---
   const canvas = document.getElementById('c');
   const versionBadge = document.getElementById('versionBadge');
@@ -328,32 +465,45 @@
     if (!newMode) return;
     const prevMode = state.mode;
     if (prevMode === newMode) {
+      useBuilder(newMode);
       canvas.style.cursor = (state.mode === 'holds') ? 'crosshair' : 'pointer';
-      if (newMode !== 'circuits') clearCircuitPanelHighlight();
+      if (newMode === 'circuits') {
+        if (state.activeCircuitId || state.circuitSel.length) {
+          highlightCircuitPanel();
+        } else {
+          clearCircuitPanelHighlight();
+        }
+      } else {
+        clearCircuitPanelHighlight();
+      }
       return;
     }
     state.mode = newMode;
+    useBuilder(newMode);
     let needsRedraw = false;
     if (newMode !== 'circuits' && state.circuitSel.length) {
       state.circuitSel = [];
       state.activeCircuitId = null;
+      resetBuilder(state.circuitBuilder);
       needsRedraw = true;
     }
     if (newMode !== 'circuits') {
       clearCircuitPanelHighlight();
+    } else if (state.activeCircuitId || state.circuitSel.length) {
+      highlightCircuitPanel();
     }
     canvas.style.cursor = (state.mode === 'holds') ? 'crosshair' : 'pointer';
     if (needsRedraw) draw();
   }
-
   const holdCountEl = document.getElementById('holdCount');
   const clearHoldsBtn = document.getElementById('clearHolds');
   const pbNameEl = document.getElementById('pbName');
   const pbColorEl = document.getElementById('pbColor');
   const pbGradeEl = document.getElementById('pbGrade');
   const feetFollowEl = document.getElementById('feetFollow');
-  const markStartBtn = document.getElementById('markStart');
-  const markFinishBtn = document.getElementById('markFinish');
+  const gridFeetPinkEl = document.getElementById('gridFeetPinkFeel');
+  const gridFeetBlueEl = document.getElementById('gridFeetBlueFeet');
+  const gridFeetBlackEl = document.getElementById('gridFeetBlackFeet');
   const saveProblemBtn = document.getElementById('saveProblem');
   const clearSelectionBtn = document.getElementById('clearSelection');
   const problemListEl = document.getElementById('problemList');
@@ -583,11 +733,19 @@
   function loadTickForm() {
     const u = getActiveUser();
     const pid = state.currentProblemId;
-    tickProblemNameEl.textContent = (state.problems.find(p=>p.id===pid)?.name) || '(select a problem)';
+    const type = state.currentItemType || 'problem';
+    let label = '(select a problem or circuit)';
+    if (pid) {
+      const item = (type === 'circuit')
+        ? state.circuits.find(c => c && c.id === pid)
+        : state.problems.find(p => p && p.id === pid);
+      if (item && item.name) label = item.name;
+    }
+    tickProblemNameEl.textContent = label;
     if (!u || !pid) {
-	    tickSentEl.checked = false; tickOnsightEl.checked = false; tickFlashEl.checked = false;
-	    tickAttemptsEl.value = 0; tickSessionsEl.value = 0; tickDateEl.value = '';
-	    return;
+      tickSentEl.checked = false; tickOnsightEl.checked = false; tickFlashEl.checked = false;
+      tickAttemptsEl.value = 0; tickSessionsEl.value = 0; tickDateEl.value = '';
+      return;
     }
     const t = getTick(u.id, pid) || { sent:false, onsight:false, flash:false, attempts:0, sessions:0, date:'' };
     tickSentEl.checked = !!t.sent;
@@ -600,59 +758,31 @@
   
   function showProblem(p) {
     if (!p) return;
-    
-    // Clear selections
-    state.selection.clear();
-    state.start.clear();
-    state.finish.clear();
-    if (state.sel && typeof state.sel === 'object') {
-      for (const k of Object.keys(state.sel)) state.sel[k].clear();
+    applyMode('problems');
+    loadProblemIntoBuilder(p);
+
+    if (pbNameEl) pbNameEl.value = p.name || '';
+    if (pbColorEl) pbColorEl.value = p.color || '#1e90ff';
+    if (pbGradeEl) pbGradeEl.value = p.grade || '';
+    const rules = (p.rules && typeof p.rules === 'object') ? p.rules : {};
+    if (feetFollowEl) {
+      feetFollowEl.checked = !!rules.feetFollow;
     }
-    
-    // Load categories (new) or legacy fields (old)
-    if (p.categories && typeof p.categories === 'object') {
-      const cats = ['start','hands','feet','finish'];
-      for (const c of cats) {
-        const arr = p.categories[c] || [];
-        if (state.sel && state.sel[c]) {
-          for (const id of arr) state.sel[c].add(id);
-        }
-      }
-      for (const id of (p.categories.start  || [])) state.start.add(id);
-      for (const id of (p.categories.finish || [])) state.finish.add(id);
-      if (Array.isArray(p.categories.hands)) {
-        for (const id of p.categories.hands) state.selection.add(id);
-      }
-    } else {
-      if (Array.isArray(p.start))  for (const id of p.start)  state.start.add(id);
-      if (Array.isArray(p.finish)) for (const id of p.finish) state.finish.add(id);
-      if (Array.isArray(p.use))    for (const id of p.use)    state.selection.add(id);
-      if (state.sel && typeof state.sel === 'object') {
-        if (Array.isArray(p.start))  for (const id of p.start)  state.sel.start.add(id);
-        if (Array.isArray(p.finish)) for (const id of p.finish) state.sel.finish.add(id);
-        if (Array.isArray(p.use))    for (const id of p.use)    state.sel.hands.add(id);
-      }
+    const gridFeet = (rules.gridFeet && typeof rules.gridFeet === 'object') ? rules.gridFeet : {};
+    if (gridFeetPinkEl) {
+      gridFeetPinkEl.checked = !!gridFeet.pinkFeel;
     }
-    
-    // UI fields
-    pbNameEl.value  = p.name || '';
-    pbColorEl.value = p.color || '#1e90ff';
-    pbGradeEl.value = p.grade || '';
-    if (typeof feetFollowEl !== 'undefined') {
-      feetFollowEl.checked = !!(p.rules && p.rules.feetFollow);
+    if (gridFeetBlueEl) {
+      gridFeetBlueEl.checked = !!gridFeet.blueFeet;
     }
-    
-    // Current + remember per user
-    state.currentProblemId = p.id;
-    if (state.activeUserId) {
-      if (!state.lastViewedByUser) state.lastViewedByUser = {};
-      state.lastViewedByUser[state.activeUserId] = p.id;
+    if (gridFeetBlackEl) {
+      gridFeetBlackEl.checked = !!gridFeet.blackFeet;
     }
-    
+
+    setCurrentItem('problem', p.id);
     if (typeof loadTickForm === 'function') loadTickForm();
     draw();
-  }
-  // --- Event wiring ---
+  }  // --- Event wiring ---
   imageLoader.addEventListener('change', (e) => {
     const file = e.target.files[0]; if (!file) return;
     const img = new Image();
@@ -901,6 +1031,7 @@
       const data = snap.data();
       hydrate(data);
       renderProblemList();
+      renderCircuitList();
       state.activeBoardId = targetId;
       if (boardIdInput) {
         boardIdInput.value = targetId;
@@ -1047,8 +1178,8 @@
       const hit = pickHold(imgPt);
       if (hit) {
         state.dragId = hit.id; // start dragging center
-		state.hoverId = hit.id;
-		state.selectedHoldId = hit.id;
+        state.hoverId = hit.id;
+        state.selectedHoldId = hit.id;
       } else {
         // create a new circular hold
         const n = imgToNorm(imgPt.x, imgPt.y);
@@ -1063,11 +1194,23 @@
     } else if (state.mode === 'circuits') {
       const hit = pickHold(imgPt);
       if (hit) {
+        const builder = state.circuitBuilder;
         const lastId = state.circuitSel[state.circuitSel.length - 1];
         if (lastId === hit.id) {
           state.circuitSel.pop();
+          if (!state.circuitSel.includes(hit.id)) {
+            for (const key of Object.keys(builder.categories)) {
+              builder.categories[key].delete(hit.id);
+            }
+            syncBuilderDerivedSets(builder);
+          }
         } else {
           state.circuitSel.push(hit.id);
+          const cat = state.currentCat;
+          if (builder.categories[cat]) {
+            builder.categories[cat].add(hit.id);
+          }
+          syncBuilderDerivedSets(builder);
         }
       }
     }
@@ -1165,8 +1308,18 @@
 
   clearHoldsBtn.addEventListener('click', ()=>{
     if (!confirm('Delete ALL holds?')) return;
-    state.holds = []; state.selection.clear(); state.start.clear(); state.finish.clear();
-    state.nextHoldId = 1; draw();
+    state.holds = [];
+    resetBuilder(state.problemBuilder);
+    resetBuilder(state.circuitBuilder);
+    state.circuitSel = [];
+    state.activeCircuitId = null;
+    useBuilder(state.mode);
+    const clearedType = state.mode === 'circuits' ? 'circuit' : 'problem';
+    setCurrentItem(clearedType, null);
+    clearCircuitPanelHighlight();
+    if (typeof loadTickForm === 'function') loadTickForm();
+    state.nextHoldId = 1;
+    draw();
   });
   
   addUserBtn.addEventListener('click', () => {
@@ -1194,25 +1347,35 @@
 
   userSelect.addEventListener('change', () => {
     state.activeUserId = userSelect.value || null;
-  
-    const lastPid = state.lastViewedByUser[state.activeUserId];
-    if (lastPid) {
-      const last = state.problems.find(x => x.id === lastPid);
-      if (last) { 
-        showProblem(last); 
-        return;  // stop here if we successfully restored
+
+    let restored = false;
+    if (state.activeUserId) {
+      const entry = parseLastViewedEntry(state.lastViewedByUser[state.activeUserId]);
+      if (entry.id) {
+        if (entry.type === 'circuit') {
+          const lastCircuit = state.circuits.find(x => x && x.id === entry.id);
+          if (lastCircuit) {
+            showCircuit(lastCircuit.id);
+            restored = true;
+          }
+        } else {
+          const lastProblem = state.problems.find(x => x.id === entry.id);
+          if (lastProblem) {
+            showProblem(lastProblem);
+            restored = true;
+          }
+        }
       }
     }
-  
-    // If no remembered problem (or problem was deleted), just refresh tick panel
-    if (typeof loadTickForm === 'function') loadTickForm();
+
+    if (!restored && typeof loadTickForm === 'function') loadTickForm();
   });
 
 
   saveTickBtn.addEventListener('click', () => {
     const u = getActiveUser();
     const pid = state.currentProblemId;
-    if (!u || !pid) { alert('Pick a user and click Show on a problem first'); return; }
+    if (!u || !pid) { alert('Pick a user and click Show on a problem or circuit first'); return; }
     const t = {
       sent: !!tickSentEl.checked,
       onsight: !!tickOnsightEl.checked,
@@ -1285,21 +1448,33 @@ clearTickBtn.addEventListener('click', () => {
       circuitListEl.appendChild(li);
     }
   }
-
   function saveCircuit() {
     if (!Array.isArray(state.circuitSel) || state.circuitSel.length === 0) {
       alert('Select at least one hold in circuits mode before saving.');
       return;
     }
     const name = circuitNameEl ? circuitNameEl.value.trim() : '';
+    const builder = state.circuitBuilder;
+    const categories = {};
+    for (const key of Object.keys(builder.categories)) {
+      categories[key] = Array.from(builder.categories[key].values()).sort((a,b)=>a-b);
+    }
     const circuit = {
       id: 'c_' + uuid(),
       name: name || `Circuit ${state.circuits.length + 1}`,
       holds: [...state.circuitSel],
+      categories,
+      start: Array.from(builder.start.values()).sort((a,b)=>a-b),
+      finish: Array.from(builder.finish.values()).sort((a,b)=>a-b),
+      hands: categories.hands ? [...categories.hands] : [],
+      feet: categories.feet ? [...categories.feet] : [],
+      use: categories.hands ? [...categories.hands] : [],
     };
     state.circuits.push(circuit);
     state.activeCircuitId = circuit.id;
+    setCurrentItem('circuit', circuit.id);
     highlightCircuitPanel();
+    if (typeof loadTickForm === 'function') loadTickForm();
     if (circuitNameEl) circuitNameEl.value = '';
     renderCircuitList();
   }
@@ -1307,53 +1482,15 @@ clearTickBtn.addEventListener('click', () => {
   function clearCircuitSelection() {
     state.circuitSel = [];
     state.activeCircuitId = null;
+    resetBuilder(state.circuitBuilder);
+    if (state.mode === 'circuits') useBuilder('circuits');
+    setCurrentItem('circuit', null);
     clearCircuitPanelHighlight();
+    if (typeof loadTickForm === 'function') loadTickForm();
     draw();
   }
 
-  function showCircuit(circuitId) {
-    const circuit = state.circuits.find(c => c && c.id === circuitId);
-    if (!circuit) return;
-    if (state.activeCircuitId && state.activeCircuitId !== circuitId) {
-      state.circuitSel = [];
-    }
-    state.activeCircuitId = circuitId;
-    state.circuitSel = Array.isArray(circuit.holds) ? [...circuit.holds] : [];
-    applyMode('circuits');
-    const circuitModeEl = document.querySelector('input[name="mode"][value="circuits"]');
-    if (circuitModeEl) {
-      circuitModeEl.checked = true;
-    }
-    highlightCircuitPanel();
-    draw();
-  }
 
-  function deleteCircuit(circuitId) {
-    const before = state.circuits.length;
-    state.circuits = state.circuits.filter(c => c && c.id !== circuitId);
-    if (before !== state.circuits.length) {
-      if (state.activeCircuitId === circuitId) {
-        state.activeCircuitId = null;
-        state.circuitSel = [];
-        clearCircuitPanelHighlight();
-        draw();
-      }
-      renderCircuitList();
-    }
-  }
-  clearSelectionBtn.addEventListener('click', () => {
-    if (state.mode === 'circuits') return;
-    state.selection.clear();
-    state.start.clear();
-    state.finish.clear();
-    for (const c of Object.keys(state.sel)) state.sel[c].clear();
-    draw();
-  });
-  if (saveCircuitBtn) {
-    saveCircuitBtn.addEventListener('click', () => {
-      saveCircuit();
-    });
-  }
 
   if (clearCircuitSelectionBtn) {
     clearCircuitSelectionBtn.addEventListener('click', () => {
@@ -1361,22 +1498,19 @@ clearTickBtn.addEventListener('click', () => {
     });
   }
 
-  markStartBtn.addEventListener('click', () => {
-    if (state.mode !== 'problems') return;
-    if (state.hoverId != null) toggleSet(state.start, state.hoverId);
-    draw();
-  });
-  markFinishBtn.addEventListener('click', () => {
-    if (state.mode !== 'problems') return;
-    if (state.hoverId != null) toggleSet(state.finish, state.hoverId);
-    draw();
-  });
   saveProblemBtn.addEventListener('click', () => {
     if (state.mode !== 'problems') return;
     const name  = pbNameEl.value.trim() || `Problem ${state.problems.length+1}`;
     const color = pbColorEl.value || '#1e90ff';
     const grade = pbGradeEl.value.trim();
-    const rules = { feetFollow: !!feetFollowEl.checked };
+    const rules = {
+      feetFollow: feetFollowEl ? !!feetFollowEl.checked : false,
+      gridFeet: {
+        pinkFeel: gridFeetPinkEl ? !!gridFeetPinkEl.checked : false,
+        blueFeet: gridFeetBlueEl ? !!gridFeetBlueEl.checked : false,
+        blackFeet: gridFeetBlackEl ? !!gridFeetBlackEl.checked : false,
+      }
+    };
 
     const start  = Array.from(state.sel.start.values()).sort((a,b)=>a-b);
     const hands  = Array.from(state.sel.hands.values()).sort((a,b)=>a-b);
@@ -1414,14 +1548,13 @@ clearTickBtn.addEventListener('click', () => {
 
   function toggleSet(set, val){ if(set.has(val)) set.delete(val); else set.add(val); }
   function toggleCat(holdId){
+    const builder = getBuilder();
+    const categories = builder ? builder.categories : null;
     const c = state.currentCat;
-    const set = state.sel[c];
+    if (!categories || !categories[c]) return;
+    const set = categories[c];
     if (set.has(holdId)) set.delete(holdId); else set.add(holdId);
-    
-    // keep old start/finish sets roughly in sync for legacy UI
-    if (c === 'start')  toggleSet(state.start, holdId);
-    if (c === 'finish') toggleSet(state.finish, holdId);
-    
+    syncBuilderDerivedSets(builder);
     draw();
   }
   function escapeHtml(s){ return s.replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m])); }
@@ -1452,6 +1585,10 @@ clearTickBtn.addEventListener('click', () => {
 
   function hydrate(data){
     if (!data || typeof data !== 'object') return;
+
+    resetBuilder(state.problemBuilder);
+    resetBuilder(state.circuitBuilder);
+    useBuilder(state.mode);
 
     if (Array.isArray(data.holds)){
       state.holds = data.holds.map(h=>({
@@ -1504,22 +1641,39 @@ clearTickBtn.addEventListener('click', () => {
     } else {
       state.lastViewedByUser = state.lastViewedByUser || {};
     }
+    for (const key of Object.keys(state.lastViewedByUser)) {
+      const raw = state.lastViewedByUser[key];
+      if (typeof raw === 'string' && raw && !raw.includes(':')) {
+        state.lastViewedByUser[key] = `problem:${raw}`;
+      }
+    }
 
     if (typeof ensureActiveUser === 'function') ensureActiveUser();
     if (typeof renderCircuitList === 'function') renderCircuitList();
 
-    const lastPid = state.lastViewedByUser && state.activeUserId
+    const lastEntryRaw = state.lastViewedByUser && state.activeUserId
       ? state.lastViewedByUser[state.activeUserId]
       : null;
+    const { type: targetType, id: targetId } = parseLastViewedEntry(lastEntryRaw);
 
-    if (lastPid) {
-      const last = state.problems.find(p => p.id === lastPid);
-      if (last && typeof showProblem === 'function') {
-        showProblem(last);
-      } else if (typeof loadTickForm === 'function') {
-        loadTickForm();
+    let restored = false;
+    if (targetId) {
+      if (targetType === 'circuit') {
+        const lastCircuit = state.circuits.find(c => c && c.id === targetId);
+        if (lastCircuit && typeof showCircuit === 'function') {
+          showCircuit(lastCircuit.id);
+          restored = true;
+        }
+      } else {
+        const lastProblem = state.problems.find(p => p && p.id === targetId);
+        if (lastProblem && typeof showProblem === 'function') {
+          showProblem(lastProblem);
+          restored = true;
+        }
       }
-    } else if (typeof loadTickForm === 'function') {
+    }
+
+    if (!restored && typeof loadTickForm === 'function') {
       loadTickForm();
     }
   }
@@ -1632,6 +1786,7 @@ clearTickBtn.addEventListener('click', () => {
       const data = JSON.parse(raw);
       hydrate(data);
       renderProblemList();
+      renderCircuitList();
       draw();
       if (data.boardImage && data.boardImage.url) {
         state.boardImagePath = data.boardImage.path || null;
@@ -1685,6 +1840,7 @@ clearTickBtn.addEventListener('click', () => {
         const data = JSON.parse(r.result);
         hydrate(data);
         renderProblemList();
+        renderCircuitList();
         draw();
         if (data.boardImage && data.boardImage.url) {
           state.boardImagePath = data.boardImage.path || null;
@@ -1758,6 +1914,82 @@ clearTickBtn.addEventListener('click', () => {
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
