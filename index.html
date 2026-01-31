@@ -9,8 +9,15 @@
 <link rel="manifest" href="manifest.webmanifest.txt">
 <meta name="theme-color" content="#111111">
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => { const swUrl = new URL('sw.js', window.location.href); navigator.serviceWorker.register(swUrl.href); });
+  if ('serviceWorker' in navigator && window.isSecureContext && /^https?:/.test(window.location.protocol)) {
+    window.addEventListener('load', () => {
+      try {
+        const swUrl = new URL('sw.js', window.location.href);
+        navigator.serviceWorker.register(swUrl.href);
+      } catch (err) {
+        console.warn('Service worker registration skipped:', err);
+      }
+    });
   }
 </script>
 
@@ -399,9 +406,6 @@
       resetBuilder(builder);
       return;
     }
-      name: name || `Circuit ${state.circuits.length + 1}`,
-      use: categories.hands ? [...categories.hands] : [],
-    };
     if (circuit.categories && typeof circuit.categories === 'object') {
       populateBuilderFromCategories(builder, circuit.categories);
     } else {
