@@ -280,7 +280,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.1'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.2'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -904,6 +904,41 @@ state.problemBuilder = createBuilderState();
     return `${userSegment}/${base}_${timestamp}${ext}`;
   }
 
+  async function captureBoardImageFile(){
+    if (!state.image) return null;
+    const width = state.imgW || state.image.naturalWidth || state.image.width || 0;
+    const height = state.imgH || state.image.naturalHeight || state.image.height || 0;
+    if (!width || !height) return null;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = width;
+    offscreen.height = height;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.drawImage(state.image, 0, 0, width, height);
+    const filename = (state.boardImageName && /\.[a-z0-9]+$/i.test(state.boardImageName))
+      ? state.boardImageName
+      : `board-${Date.now()}.png`;
+    return new Promise(resolve => {
+      if (!offscreen.toBlob) {
+        resolve(null);
+        return;
+      }
+      offscreen.toBlob(blob => {
+        if (!blob) { resolve(null); return; }
+        if (typeof File === 'function') {
+          try {
+            const file = new File([blob], filename, { type: blob.type || 'image/png' });
+            resolve(file);
+            return;
+          } catch (_) {
+            // fallthrough to blob naming
+          }
+        }
+        Object.defineProperty(blob, 'name', { value: filename, configurable: true });
+        resolve(blob);
+      }, 'image/png', 0.95);
+    });
+  }
+
   async function loadBoardImageFromUrl(url){
     if (!url) return;
     return new Promise((resolve, reject) => {
@@ -956,7 +991,17 @@ state.problemBuilder = createBuilderState();
     }
     const targetId = normalizeBoardId(boardId) || 'primary';
     const hasImageOnFile = !!(state.boardImagePath && state.boardImageUrl);
-    if (!state.imageFile && !hasImageOnFile) {
+    let activeImageFile = state.imageFile || null;
+    if (!activeImageFile && !hasImageOnFile) {
+      activeImageFile = await captureBoardImageFile();
+      if (activeImageFile) {
+        state.imageFile = activeImageFile;
+        if (!state.boardImageName && activeImageFile.name) {
+          state.boardImageName = activeImageFile.name;
+        }
+      }
+    }
+    if (!activeImageFile && !hasImageOnFile) {
       alert('Please choose a board image before saving online.');
       return;
     }
@@ -966,15 +1011,15 @@ state.problemBuilder = createBuilderState();
       const { firebase, supabase, bucket } = getCloudHandles();
       let path = state.boardImagePath || null;
 
-      if (state.imageFile) {
-        if (!path) path = buildBoardImagePath(state.imageFile);
-        const upload = await supabase.storage.from(bucket).upload(path, state.imageFile, { upsert: true });
+      if (activeImageFile) {
+        if (!path) path = buildBoardImagePath(activeImageFile);
+        const upload = await supabase.storage.from(bucket).upload(path, activeImageFile, { upsert: true });
         if (upload.error) throw upload.error;
         const { data: publicData, error: publicErr } = supabase.storage.from(bucket).getPublicUrl(path);
         if (publicErr) throw publicErr;
         state.boardImagePath = path;
         state.boardImageUrl = (publicData && publicData.publicUrl) || null;
-        state.boardImageName = state.imageFile.name || state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
+        state.boardImageName = activeImageFile.name || state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
       } else if (path) {
         state.boardImagePath = path;
         state.boardImageName = state.boardImageName || (path ? path.split('/').slice(-1)[0] : null);
