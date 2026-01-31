@@ -280,7 +280,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.3'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.4'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -913,29 +913,48 @@ state.problemBuilder = createBuilderState();
     offscreen.width = width;
     offscreen.height = height;
     const offCtx = offscreen.getContext('2d');
-    offCtx.drawImage(state.image, 0, 0, width, height);
+    try {
+      offCtx.drawImage(state.image, 0, 0, width, height);
+    } catch (err) {
+      console.warn('captureBoardImageFile: drawImage failed', err);
+      return null;
+    }
+    const extFromName = (state.boardImageName || '').split('.').pop();
+    const normalizedExt = extFromName ? extFromName.toLowerCase() : '';
+    const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+    const mime = mimeMap[normalizedExt] || 'image/jpeg';
+    const quality = mime === 'image/jpeg' ? 0.9 : undefined;
+    const fallbackExt = mime === 'image/png' ? 'png' : 'jpg';
     const filename = (state.boardImageName && /\.[a-z0-9]+$/i.test(state.boardImageName))
       ? state.boardImageName
-      : `board-${Date.now()}.png`;
+      : `board-${Date.now()}.${fallbackExt}`;
     return new Promise(resolve => {
       if (!offscreen.toBlob) {
         resolve(null);
         return;
       }
-      offscreen.toBlob(blob => {
-        if (!blob) { resolve(null); return; }
-        if (typeof File === 'function') {
-          try {
-            const file = new File([blob], filename, { type: blob.type || 'image/png' });
-            resolve(file);
-            return;
-          } catch (_) {
-            // fallthrough to blob naming
+      try {
+        offscreen.toBlob(async blob => {
+          if (!blob) { resolve(null); return; }
+          if (!blob.type && mime) {
+            try { Object.defineProperty(blob, 'type', { value: mime, configurable: true }); } catch (_) {}
           }
-        }
-        Object.defineProperty(blob, 'name', { value: filename, configurable: true });
-        resolve(blob);
-      }, 'image/png', 0.95);
+          if (typeof File === 'function') {
+            try {
+              const file = new File([blob], filename, { type: mime || blob.type || 'image/png' });
+              resolve(file);
+              return;
+            } catch (_) {
+              // fallthrough
+            }
+          }
+          try { Object.defineProperty(blob, 'name', { value: filename, configurable: true }); } catch (_) {}
+          resolve(blob);
+        }, mime, quality);
+      } catch (err) {
+        console.warn('captureBoardImageFile: toBlob failed', err);
+        resolve(null);
+      }
     });
   }
 
@@ -1013,7 +1032,19 @@ state.problemBuilder = createBuilderState();
 
       if (activeImageFile) {
         if (!path) path = buildBoardImagePath(activeImageFile);
-        const upload = await supabase.storage.from(bucket).upload(path, activeImageFile, { upsert: true });
+        const uploadOptions = { upsert: true, contentType: activeImageFile.type || 'image/png' };
+        let upload;
+        try {
+          upload = await supabase.storage.from(bucket).upload(path, activeImageFile, uploadOptions);
+        } catch (blobErr) {
+          console.warn('Supabase upload failed for Blob payload, retrying with ArrayBuffer', blobErr);
+          if (activeImageFile.arrayBuffer) {
+            const buffer = await activeImageFile.arrayBuffer();
+            upload = await supabase.storage.from(bucket).upload(path, buffer, uploadOptions);
+          } else {
+            throw blobErr;
+          }
+        }
         if (upload.error) throw upload.error;
         const { data: publicData, error: publicErr } = supabase.storage.from(bucket).getPublicUrl(path);
         if (publicErr) throw publicErr;
