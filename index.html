@@ -1607,6 +1607,16 @@ clearTickBtn.addEventListener('click', () => {
     });
   }
 
+  if (clearSelectionBtn) {
+    clearSelectionBtn.addEventListener('click', () => {
+      resetBuilder(state.problemBuilder);
+      useBuilder('problems');
+      setCurrentItem('problem', null);
+      if (typeof loadTickForm === 'function') loadTickForm();
+      draw();
+    });
+  }
+
   saveProblemBtn.addEventListener('click', () => {
     if (state.mode !== 'problems') return;
     const name  = pbNameEl.value.trim() || `Problem ${state.problems.length+1}`;
