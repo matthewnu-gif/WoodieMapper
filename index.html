@@ -312,7 +312,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.8.3'; // Increment when you ship an update
+  const APP_VERSION = 'v1.8.4'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -574,6 +574,13 @@ state.problemBuilder = createBuilderState();
   const boardImageFileLabel = document.getElementById('boardImageFileLabel');
   const importJsonInput = document.getElementById('importJson');
   const helpBtn = document.getElementById('helpBtn');
+  const pinchState = {
+    active: false,
+    startDist: 0,
+    startMid: null,
+    startCam: null,
+    anchorImg: null,
+  };
   const catEls = document.querySelectorAll('input[name="cat"]');
   if (boardIdInput) {
     boardIdInput.value = state.activeBoardId || '';
@@ -2089,19 +2096,89 @@ clearTickBtn.addEventListener('click', () => {
     const rect = canvas.getBoundingClientRect();
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   }
+  function getTouchPoints(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width ? canvas.width / rect.width : 1;
+    const scaleY = rect.height ? canvas.height / rect.height : 1;
+    const pts = [];
+    const touches = Array.from(evt.touches || []);
+    for (let i = 0; i < Math.min(touches.length, 2); i++) {
+      const t = touches[i];
+      pts.push({
+        x: (t.clientX - rect.left) * scaleX,
+        y: (t.clientY - rect.top) * scaleY,
+      });
+    }
+    return pts;
+  }
+  function beginPinch(evt) {
+    const pts = getTouchPoints(evt);
+    if (pts.length < 2) return;
+    const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    pinchState.active = true;
+    pinchState.startDist = distance(pts[0], pts[1]) || 1;
+    pinchState.startMid = mid;
+    pinchState.startCam = { x: state.cam.x, y: state.cam.y, s: state.cam.s };
+    pinchState.anchorImg = canvasToImg(mid.x, mid.y);
+  }
+  function updatePinch(evt) {
+    if (!pinchState.active) return;
+    const pts = getTouchPoints(evt);
+    if (pts.length < 2 || !pinchState.startDist) return;
+    const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    const dist = distance(pts[0], pts[1]);
+    if (!dist) return;
+    const scaleFactor = dist / pinchState.startDist;
+    const base = pinchState.startCam || { x: state.cam.x, y: state.cam.y, s: state.cam.s };
+    const newScale = clamp(base.s * scaleFactor, 0.1, 5);
+    const anchor = pinchState.anchorImg || canvasToImg(mid.x, mid.y);
+    state.cam.s = newScale;
+    state.cam.x = mid.x - anchor.x * newScale;
+    state.cam.y = mid.y - anchor.y * newScale;
+    draw();
+  }
+  function endPinch() {
+    pinchState.active = false;
+    pinchState.startDist = 0;
+    pinchState.startMid = null;
+    pinchState.startCam = null;
+    pinchState.anchorImg = null;
+  }
   canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length >= 2) {
+      state.pan.active = false;
+      beginPinch(e);
+      e.preventDefault();
+      return;
+    }
+    endPinch();
     const t = firstTouch(e); if (!t) return;
     const p = touchPos(t);
     canvas.dispatchEvent(new MouseEvent('mousedown', {clientX: p.x + canvas.getBoundingClientRect().left, clientY: p.y + canvas.getBoundingClientRect().top, buttons:1}));
     e.preventDefault();
   }, {passive:false});
   canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length >= 2 || pinchState.active) {
+      updatePinch(e);
+      e.preventDefault();
+      return;
+    }
     const t = firstTouch(e); if (!t) return;
     const p = touchPos(t);
     canvas.dispatchEvent(new MouseEvent('mousemove', {clientX: p.x + canvas.getBoundingClientRect().left, clientY: p.y + canvas.getBoundingClientRect().top, buttons:1}));
     e.preventDefault();
   }, {passive:false});
   canvas.addEventListener('touchend', (e) => {
+    if (pinchState.active && e.touches.length < 2) {
+      endPinch();
+    }
+    if (!e.touches.length) {
+      canvas.dispatchEvent(new MouseEvent('mouseup', {}));
+    }
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchcancel', (e) => {
+    endPinch();
     canvas.dispatchEvent(new MouseEvent('mouseup', {}));
     e.preventDefault();
   }, {passive:false});
