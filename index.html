@@ -80,6 +80,7 @@
 <body>
 <header>
   <button class="btn" id="boardImageButton" type="button">Choose board image file</button>
+  <input type="file" id="imageLoader" accept="image/*" style="display:none" />
   <button class="btn" id="fitBtn" title="Fit image to canvas">Fit</button>
   <button class="btn" id="sidebarToggle" type="button">Hide Sidebar</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
@@ -299,7 +300,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.7.0'; // Increment when you ship an update
+  const APP_VERSION = 'v1.7.1'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -2188,9 +2189,8 @@ clearTickBtn.addEventListener('click', () => {
     });
   }
   function openBoardImagePicker() {
-    if (imageLoader) {
-      imageLoader.click();
-    }
+    if (!imageLoader) return;
+    imageLoader.click();
   }
 
   if (boardImageButton) {
