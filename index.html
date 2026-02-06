@@ -85,6 +85,7 @@
   <button class="btn" id="sidebarToggle" type="button">Hide Sidebar</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
   <span class="muted">Resize hold: hover + mouse wheel (<span class="kbd">[</span>/<span class="kbd">]</span> keys too)</span>
+  <button class="btn" id="helpBtn" type="button" style="margin-left:auto;">Help me??</button>
   <span id="versionBadge" class="version-badge"></span>
 </header>
 <main>
@@ -178,6 +179,7 @@
         </div>
       </div>
       <div style="margin-top:12px">
+        <strong>Set a Problem</strong>
         <label>Name <input id="pbName" type="text" placeholder="Problem name" style="width:100%" /></label>
         <div class="row">
           <label class="row">Colour <input id="pbColor" type="color" value="#1e90ff" /></label>
@@ -301,7 +303,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.7.4'; // Increment when you ship an update
+  const APP_VERSION = 'v1.8.1'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -562,6 +564,7 @@ state.problemBuilder = createBuilderState();
   const importJsonLabelEl = document.getElementById('importJsonLabel');
   const boardImageFileLabel = document.getElementById('boardImageFileLabel');
   const importJsonInput = document.getElementById('importJson');
+  const helpBtn = document.getElementById('helpBtn');
   const catEls = document.querySelectorAll('input[name="cat"]');
   if (boardIdInput) {
     boardIdInput.value = state.activeBoardId || '';
@@ -577,6 +580,12 @@ state.problemBuilder = createBuilderState();
   updateImportJsonLabel('');
   updateBoardImageLabel(state.boardImageName);
   updateCircuitsPanelVisibility();
+
+  if (helpBtn) {
+    helpBtn.addEventListener('click', () => {
+      window.open('help.html', '_blank', 'noopener');
+    });
+  }
 
   // Users DOM
   const userSelect      = document.getElementById('userSelect');

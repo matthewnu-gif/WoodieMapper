@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Woody Wall Mapper · Help</title>
+  <style>
+    :root { --pad: 18px; --bg: #f7f7f7; --card: #fff; --border: #e5e5e5; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: #1b1b1b;
+    }
+    header {
+      padding: var(--pad);
+      background: #111;
+      color: #fff;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+    header p {
+      margin: 6px 0 0;
+      color: #ddd;
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: calc(var(--pad) * 1.5) var(--pad);
+    }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: var(--pad);
+      margin-bottom: var(--pad);
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+    }
+    h3 {
+      margin-bottom: 4px;
+      font-size: 1rem;
+    }
+    ul {
+      padding-left: 20px;
+      margin: 6px 0 12px;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+    .back-link {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      color: #111;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .back-link:hover {
+      background: #111;
+      color: #fff;
+    }
+    .note {
+      background:#fff6d9;
+      border-left:4px solid #f59e0b;
+      padding:8px 12px;
+      margin:8px 0 0;
+      border-radius:6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Woody Wall Mapper Help</h1>
+    <p><strong>Help for Version 1.8.1.</strong> Learn what each panel does, when to use it, and how the online/offline architecture works.</p>
+  </header>
+  <main>
+    <section>
+      <h2>Quick Start</h2>
+      <ol>
+        <li>Load a board image (top-left “Choose board image file”).</li>
+        <li>Add or edit holds in <strong>Holds</strong> mode.</li>
+        <li>Switch to <strong>Problems</strong> mode to assign holds to categories.</li>
+        <li>Use <strong>Save problem</strong> or <strong>Save + Cloud</strong> to store problems locally or with the cloud.</li>
+        <li>Manage syncing, imports, and exports from the <strong>Storage</strong> panel.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Storage Panel</h2>
+      <h3>Mode Selector</h3>
+      <p>Choose <strong>Local</strong> for browser-only storage, or <strong>Online</strong> to reach Firebase/Supabase. Switch to Online when you want to share boards with other devices.</p>
+      <h3>Refresh Boards, Board List, Board ID</h3>
+      <ul>
+        <li><strong>Refresh Boards</strong> pulls the latest board IDs from Firebase (when Online).</li>
+        <li>The dropdown lists available cloud boards; selecting one fills the Board ID field.</li>
+        <li><strong>Board ID</strong> lets you target a specific board name when saving or loading.</li>
+      </ul>
+      <h3>Save / Load</h3>
+      <p><em>Save to Browser</em> and <em>Load</em> work locally; with Online mode, the same buttons trigger Firebase fetch/store plus Supabase image uploads.</p>
+      <h3>Export / Import JSON</h3>
+      <p>Use these buttons to back up or restore a JSON file of holds, problems, circuits, users, and ticks. Helpful for manual versioning or migrating data.</p>
+      <h3>Board Image Upload</h3>
+      <p>Attach a wall image that will be drawn under the holds. When Online mode saves successfully, the file uploads to Supabase storage.</p>
+    </section>
+
+    <section>
+      <h2>Problems Panel</h2>
+      <h3>Problem Selector</h3>
+      <p>Sort problems by grade (ascending/descending) or creation date (newest/oldest). Each entry has quick “Show” and “Delete” controls.</p>
+      <h3>Users &amp; Ticks</h3>
+      <p>Manage climber profiles and track attempts, sessions, and send style (sent/onsight/flash). Use Clear Tick to reset form data.</p>
+      <h3>Problem Creator</h3>
+      <ul>
+        <li><strong>Set a Problem</strong>: name, colour, grade, and category radio buttons let you assign holds to Start/Hands/Feet/Finish.</li>
+        <li>Grid feet toggles (Pink Feel, Blue Feet, Black Feet, Kick Board) store extra rules.</li>
+        <li><strong>Save problem</strong> records it locally; <strong>Save + Cloud</strong> repeats the save then uploads the full board state.</li>
+        <li><strong>Clear selection</strong> resets the current hold selections so you can start defining a new problem quickly.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Circuits Panel</h2>
+      <p>Only visible in <strong>Circuits mode</strong>. Build ordered sequences of holds to create training circuits. Save to list them, or clear selection to restart.</p>
+    </section>
+
+    <section>
+      <h2>Options &amp; Mode Panels</h2>
+      <ul>
+        <li><strong>Options</strong>: toggle hold IDs, ring visibility, or dim the background image for better contrast.</li>
+        <li><strong>Mode</strong>: switch between Holds (add/move/delete holds), Problems (assign holds to categories), and Circuits (sequence holds).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Holds Panel</h2>
+      <p>Displays total hold count, offers radius adjustments, and provides a reset (“Clear all holds”). Use this when laying out a new wall image or cleaning up clutter.</p>
+    </section>
+
+    <section>
+      <h2>Architecture &amp; Setup</h2>
+      <ul>
+        <li><strong>Frontend</strong>: a single-page app (`index.html`) with vanilla JS handles canvas rendering, UI state, and event wiring.</li>
+        <li><strong>Local persistence</strong>: browser <code>localStorage</code> keeps the latest serialized board when saving in Local mode.</li>
+        <li><strong>Firebase</strong>: Firestore stores structured board data (holds, problems, circuits, users, ticks). Anonymous auth enables quick write access.</li>
+        <li><strong>Supabase Storage</strong>: uploads board image files to the configured bucket; board metadata keeps the filename/URL.</li>
+        <li><strong>Configuration</strong>: `config.js` (or the fallback `config.example.js`) must define `window.firebaseConfig` and `window.supabaseConfig` with your project keys.</li>
+        <li><strong>Offline support</strong>: an optional service worker (sw.js) caches assets, so the mapper can continue to load even with patchy networks.</li>
+      </ul>
+      <div class="note">
+        <strong>Tip:</strong> Keep your Supabase bucket policy open for authenticated writes, and make sure Firebase Firestore security rules align with your anonymous usage model.
+      </div>
+    </section>
+
+    <a class="back-link" href="index.html">Return to Woodie Mapper</a>
+  </main>
+</body>
+</html>
