@@ -56,8 +56,11 @@
   }
   .list { margin:8px 0; padding:0; list-style:none; max-height:180px; overflow:auto; border:1px solid #eee; border-radius:6px; }
   .list li { padding:6px 8px; border-bottom:1px solid #f3f3f3; display:flex; justify-content:space-between; gap:6px; align-items:center; }
+  .list li.is-active { background:#fff9e6; border-left:3px solid #facc15; }
+  .list li > div:first-child { flex:1; }
   .pill { padding:2px 6px; border-radius:999px; border:1px solid #ddd; font-size:12px; }
   .muted { color:#888; }
+  .problem-rules { font-size:12px; color:#444; margin-top:4px; display:block; }
   .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; border:1px solid #ddd; padding:1px 4px; border-radius:4px; }
   .warn { color:#a33; }
   #circuitsPanel.is-active { border-color:#22c55e; box-shadow:0 0 0 2px rgba(34,197,94,0.35); }
@@ -312,7 +315,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.8.4'; // Increment when you ship an update
+  const APP_VERSION = 'v1.8.5'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -484,6 +487,9 @@
       } else {
         delete state.lastViewedByUser[state.activeUserId];
       }
+    }
+    if (type === 'problem' && typeof renderProblemList === 'function') {
+      renderProblemList();
     }
   }
 state.problemBuilder = createBuilderState();
@@ -1579,7 +1585,21 @@ clearTickBtn.addEventListener('click', () => {
     return (typeof p.dateCreated === 'number') ? p.dateCreated : 0;
   }
 
+  function feetRuleTags(problem) {
+    if (!problem || typeof problem !== 'object') return [];
+    const rules = (problem.rules && typeof problem.rules === 'object') ? problem.rules : {};
+    const tags = [];
+    if (rules.feetFollow) tags.push('follow');
+    const grid = (rules.gridFeet && typeof rules.gridFeet === 'object') ? rules.gridFeet : {};
+    if (grid.pinkFeel) tags.push('pink');
+    if (grid.blueFeet) tags.push('blue');
+    if (grid.blackFeet) tags.push('black');
+    if (rules.kickBoard) tags.push('kick');
+    return tags;
+  }
+
   function renderProblemList() {
+    if (!problemListEl) return;
     problemListEl.innerHTML = '';
     const problems = Array.isArray(state.problems) ? [...state.problems] : [];
     problems.sort(compareProblems);
@@ -1594,6 +1614,17 @@ clearTickBtn.addEventListener('click', () => {
       const delBtn = document.createElement('button'); delBtn.className='btn'; delBtn.textContent='Delete';
       delBtn.onclick = () => { if (!confirm('Delete this problem?')) return; state.problems = state.problems.filter(q=>q.id!==p.id); renderProblemList(); };
       right.appendChild(showBtn); right.appendChild(delBtn);
+      const isActive = state.currentProblemId === p.id;
+      if (isActive) {
+        li.classList.add('is-active');
+        const tags = feetRuleTags(p);
+        if (tags.length) {
+          const rulesEl = document.createElement('div');
+          rulesEl.className = 'problem-rules';
+          rulesEl.textContent = 'Feet: ' + tags.join(', ');
+          left.appendChild(rulesEl);
+        }
+      }
       li.appendChild(left); li.appendChild(right);
       problemListEl.appendChild(li);
     }
