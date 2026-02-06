@@ -79,7 +79,7 @@
 </head>
 <body>
 <header>
-  <input type="file" id="imageLoader" accept="image/*" />
+  <button class="btn" id="boardImageButton" type="button">Choose board image file</button>
   <button class="btn" id="fitBtn" title="Fit image to canvas">Fit</button>
   <button class="btn" id="sidebarToggle" type="button">Hide Sidebar</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
@@ -125,9 +125,12 @@
       <p class="muted" style="margin:6px 0 0;">Load in a previously saved local JSON file.</p>
       <div class="row" style="margin-top:6px">
         <label class="row" style="gap:6px; flex:1; align-items:center;">
-          <span>Choose file</span>
+          <span>Choose JSON File</span>
           <input type="file" id="importJson" accept="application/json" style="flex:1;" />
         </label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="storageBoardImageButton" type="button">Choose board image file</button>
       </div>
     </fieldset>
 
@@ -296,7 +299,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.12'; // Increment when you ship an update
+  const APP_VERSION = 'v1.7.0'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -551,6 +554,8 @@ state.problemBuilder = createBuilderState();
   const boardIdInput = document.getElementById('boardId');
   const boardListSelect = document.getElementById('boardList');
   const refreshBoardsBtn = document.getElementById('refreshBoards');
+  const boardImageButton = document.getElementById('boardImageButton');
+  const storageBoardImageButton = document.getElementById('storageBoardImageButton');
   const catEls = document.querySelectorAll('input[name="cat"]');
   if (boardIdInput) {
     boardIdInput.value = state.activeBoardId || '';
@@ -2181,4 +2186,16 @@ clearTickBtn.addEventListener('click', () => {
         alert('Problem saved locally, but cloud save failed: ' + (err && err.message ? err.message : err));
       }
     });
+  }
+  function openBoardImagePicker() {
+    if (imageLoader) {
+      imageLoader.click();
+    }
+  }
+
+  if (boardImageButton) {
+    boardImageButton.addEventListener('click', openBoardImagePicker);
+  }
+  if (storageBoardImageButton) {
+    storageBoardImageButton.addEventListener('click', openBoardImagePicker);
   }
