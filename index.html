@@ -99,9 +99,11 @@
         <label class="row"><input type="radio" name="syncMode" value="online"> Online</label>
         <span id="syncStatus" class="muted" style="margin-left:auto"></span>
       </div>
+      <p class="muted" style="margin:6px 0 0;">Refresh Boards to pull latest version from the cloud.</p>
       <div class="row" style="margin-top:6px; justify-content:flex-end">
         <button class="btn" id="refreshBoards">Refresh Boards</button>
       </div>
+      <p class="muted" style="margin:6px 0 0;">Select board</p>
       <div class="row" style="margin-top:6px">
         <select id="boardList" style="flex:1; min-width:160px"><option value="">No cloud boards available</option></select>
       </div>
@@ -111,19 +113,92 @@
           <input id="boardId" type="text" placeholder="e.g. woody-demo" style="flex:1; min-width:160px" />
         </label>
       </div>
+      <p class="muted" style="margin:6px 0 0;">Load in the selected board. Save any changes to your board, or save a new board with a new Board ID.</p>
       <div class="row" style="margin-top:6px">
         <button class="btn" id="saveLocal">Save to Browser</button>
         <button class="btn" id="loadLocal">Load</button>
       </div>
+      <p class="muted" style="margin:6px 0 0;">Back up the JSON file locally if required.</p>
       <div class="row" style="margin-top:6px">
         <button class="btn" id="exportJson">Export JSON</button>
       </div>
+      <p class="muted" style="margin:6px 0 0;">Load in a previously saved local JSON file.</p>
       <div class="row" style="margin-top:6px">
         <label class="row" style="gap:6px; flex:1; align-items:center;">
           <span>Choose file</span>
           <input type="file" id="importJson" accept="application/json" style="flex:1;" />
         </label>
       </div>
+    </fieldset>
+
+    <fieldset id="problemsPanel">
+      <legend>Problems</legend>
+      <ul class="list" id="problemList" style="margin-bottom:12px"></ul>
+      <fieldset id="usersPanel" style="margin-top:12px">
+        <legend>Users</legend>
+        <div class="row">
+          <select id="userSelect" style="flex:1; min-width:160px"></select>
+          <button class="btn" id="deleteUserBtn" title="Delete selected user">Delete</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input id="newUserName" type="text" placeholder="Add user name" style="flex:1; min-width:160px" />
+          <button class="btn" id="addUserBtn">Add</button>
+        </div>
+      </fieldset>
+      <div id="tickPanel" style="margin-top:8px; border:1px solid #eee; padding:8px; border-radius:8px;">
+        <div class="row" style="justify-content:space-between">
+          <strong>Tick for user:</strong>
+          <span id="tickProblemName" class="muted">(select a problem or circuit)</span>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label><input type="checkbox" id="tickSent"> Sent</label>
+          <label><input type="checkbox" id="tickOnsight"> Onsight</label>
+          <label><input type="checkbox" id="tickFlash"> Flash</label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label>Attempts <input type="number" id="tickAttempts" min="0" value="0" style="width:80px"></label>
+          <label>Sessions <input type="number" id="tickSessions" min="0" value="0" style="width:80px"></label>
+          <label>Date <input type="date" id="tickDate" style="width:150px"></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn" id="saveTickBtn">Save Tick</button>
+          <button class="btn" id="clearTickBtn">Clear Tick</button>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label>Name <input id="pbName" type="text" placeholder="Problem name" style="width:100%" /></label>
+        <div class="row">
+          <label class="row">Colour <input id="pbColor" type="color" value="#1e90ff" /></label>
+          <label class="row">Grade <input id="pbGrade" type="text" placeholder="e.g. 6B" style="width:90px" /></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <strong>Category:</strong>
+          <label class="row"><input type="radio" name="cat" value="start"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#22c55e"></span> Start</label>
+          <label class="row"><input type="radio" name="cat" value="hands" checked> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3b82f6"></span> Hands</label>
+          <label class="row"><input type="radio" name="cat" value="feet"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#eab308"></span> Feet</label>
+          <label class="row"><input type="radio" name="cat" value="finish"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ef4444"></span> Finish</label>
+        </div>
+        <label><input type="checkbox" id="feetFollow" checked /> Feet follow</label>
+        <div class="row" id="gridFeetOptions" style="gap:12px; flex-wrap:wrap">
+          <label><input type="checkbox" id="gridFeetPinkFeel" /> Pink Feel</label>
+          <label><input type="checkbox" id="gridFeetBlueFeet" /> Blue Feet</label>
+          <label><input type="checkbox" id="gridFeetBlackFeet" /> Black Feet</label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn" id="saveProblem">Save problem</button>
+          <button class="btn" id="clearSelection">Clear selection</button>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset id="circuitsPanel">
+      <legend>Circuits</legend>
+      <label>Name <input id="circuitName" type="text" placeholder="Circuit name" style="width:100%" /></label>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="saveCircuit">Save circuit</button>
+        <button class="btn" id="clearCircuitSelection">Clear selection</button>
+      </div>
+      <ul class="list" id="circuitList"></ul>
     </fieldset>
 
     <fieldset>
@@ -150,76 +225,6 @@
         <button class="btn" id="radiusPlus">+ Radius</button>
       </div>
     </fieldset>
-    <fieldset id="usersPanel">
-      <legend>Users</legend>
-      <div class="row">
-        <select id="userSelect" style="flex:1; min-width:160px"></select>
-        <button class="btn" id="deleteUserBtn" title="Delete selected user">Delete</button>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <input id="newUserName" type="text" placeholder="Add user name" style="flex:1; min-width:160px" />
-        <button class="btn" id="addUserBtn">Add</button>
-      </div>
-    </fieldset>
-
-    <fieldset id="problemsPanel">
-      <legend>Problems</legend>
-      <label>Name <input id="pbName" type="text" placeholder="Problem name" style="width:100%" /></label>
-      <div class="row">
-        <label class="row">Colour <input id="pbColor" type="color" value="#1e90ff" /></label>
-        <label class="row">Grade <input id="pbGrade" type="text" placeholder="e.g. 6B" style="width:90px" /></label>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <strong>Category:</strong>
-        <label class="row"><input type="radio" name="cat" value="start"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#22c55e"></span> Start</label>
-        <label class="row"><input type="radio" name="cat" value="hands" checked> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3b82f6"></span> Hands</label>
-        <label class="row"><input type="radio" name="cat" value="feet"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#eab308"></span> Feet</label>
-        <label class="row"><input type="radio" name="cat" value="finish"> <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ef4444"></span> Finish</label>
-      </div>
-      <label><input type="checkbox" id="feetFollow" checked /> Feet follow</label>
-      <div class="row" id="gridFeetOptions" style="gap:12px; flex-wrap:wrap">
-        <label><input type="checkbox" id="gridFeetPinkFeel" /> Pink Feel</label>
-        <label><input type="checkbox" id="gridFeetBlueFeet" /> Blue Feet</label>
-        <label><input type="checkbox" id="gridFeetBlackFeet" /> Black Feet</label>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button class="btn" id="saveProblem">Save problem</button>
-        <button class="btn" id="clearSelection">Clear selection</button>
-      </div>
-      <div id="tickPanel" style="margin-top:8px; border:1px solid #eee; padding:8px; border-radius:8px;">
-        <div class="row" style="justify-content:space-between">
-          <strong>Tick for user:</strong>
-          <span id="tickProblemName" class="muted">(select a problem or circuit)</span>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <label><input type="checkbox" id="tickSent"> Sent</label>
-          <label><input type="checkbox" id="tickOnsight"> Onsight</label>
-          <label><input type="checkbox" id="tickFlash"> Flash</label>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <label>Attempts <input type="number" id="tickAttempts" min="0" value="0" style="width:80px"></label>
-          <label>Sessions <input type="number" id="tickSessions" min="0" value="0" style="width:80px"></label>
-          <label>Date <input type="date" id="tickDate" style="width:150px"></label>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button class="btn" id="saveTickBtn">Save Tick</button>
-          <button class="btn" id="clearTickBtn">Clear Tick</button>
-        </div>
-      </div>
-
-      <ul class="list" id="problemList"></ul>
-    </fieldset>
-
-    <fieldset id="circuitsPanel">
-      <legend>Circuits</legend>
-      <label>Name <input id="circuitName" type="text" placeholder="Circuit name" style="width:100%" /></label>
-      <div class="row" style="margin-top:6px">
-        <button class="btn" id="saveCircuit">Save circuit</button>
-        <button class="btn" id="clearCircuitSelection">Clear selection</button>
-      </div>
-      <ul class="list" id="circuitList"></ul>
-    </fieldset>
-
     <div class="muted">Free to use.</div>
   </aside>
 </main>
@@ -282,7 +287,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.9'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.10'; // Increment when you ship an update
 
   // --- State ---
   const state = {
