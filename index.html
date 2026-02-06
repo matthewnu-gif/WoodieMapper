@@ -471,7 +471,6 @@
 state.problemBuilder = createBuilderState();
   state.circuitBuilder = createBuilderState();
   useBuilder('problems');
-  updateCircuitsPanelVisibility();
   // --- DOM ---
   const canvas = document.getElementById('c');
   const versionBadge = document.getElementById('versionBadge');
@@ -552,6 +551,7 @@ state.problemBuilder = createBuilderState();
   if (boardIdInput) {
     boardIdInput.value = state.activeBoardId || '';
   }
+  updateCircuitsPanelVisibility();
 
   // Users DOM
   const userSelect      = document.getElementById('userSelect');
