@@ -190,9 +190,11 @@
           <label><input type="checkbox" id="gridFeetPinkFeel" /> Pink Feel</label>
           <label><input type="checkbox" id="gridFeetBlueFeet" /> Blue Feet</label>
           <label><input type="checkbox" id="gridFeetBlackFeet" /> Black Feet</label>
+          <label><input type="checkbox" id="kickBoard" /> Kick Board</label>
         </div>
-        <div class="row" style="margin-top:6px">
+        <div class="row" style="margin-top:6px; flex-wrap:wrap; gap:8px">
           <button class="btn" id="saveProblem">Save problem</button>
+          <button class="btn" id="saveProblemCloud">Save + Cloud</button>
           <button class="btn" id="clearSelection">Clear selection</button>
         </div>
       </div>
@@ -294,7 +296,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.11'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.12'; // Increment when you ship an update
 
   // --- State ---
   const state = {
@@ -525,7 +527,9 @@ state.problemBuilder = createBuilderState();
   const gridFeetPinkEl = document.getElementById('gridFeetPinkFeel');
   const gridFeetBlueEl = document.getElementById('gridFeetBlueFeet');
   const gridFeetBlackEl = document.getElementById('gridFeetBlackFeet');
+  const kickBoardEl = document.getElementById('kickBoard');
   const saveProblemBtn = document.getElementById('saveProblem');
+  const saveProblemCloudBtn = document.getElementById('saveProblemCloud');
   const clearSelectionBtn = document.getElementById('clearSelection');
   const problemListEl = document.getElementById('problemList');
   const circuitsPanelEl = document.getElementById('circuitsPanel');
@@ -800,6 +804,9 @@ state.problemBuilder = createBuilderState();
     }
     if (gridFeetBlackEl) {
       gridFeetBlackEl.checked = !!gridFeet.blackFeet;
+    }
+    if (kickBoardEl) {
+      kickBoardEl.checked = !!rules.kickBoard;
     }
 
     setCurrentItem('problem', p.id);
@@ -1641,6 +1648,45 @@ clearTickBtn.addEventListener('click', () => {
   if (sortDateDescBtn) sortDateDescBtn.addEventListener('click', () => setProblemSort('date', 'desc'));
   if (sortDateAscBtn) sortDateAscBtn.addEventListener('click', () => setProblemSort('date', 'asc'));
 
+  function saveProblemToState() {
+    if (state.mode !== 'problems') return null;
+    const name  = pbNameEl.value.trim() || `Problem ${state.problems.length+1}`;
+    const color = pbColorEl.value || '#1e90ff';
+    const grade = pbGradeEl.value.trim();
+    const rules = {
+      feetFollow: feetFollowEl ? !!feetFollowEl.checked : false,
+      gridFeet: {
+        pinkFeel: gridFeetPinkEl ? !!gridFeetPinkEl.checked : false,
+        blueFeet: gridFeetBlueEl ? !!gridFeetBlueEl.checked : false,
+        blackFeet: gridFeetBlackEl ? !!gridFeetBlackEl.checked : false,
+      },
+      kickBoard: kickBoardEl ? !!kickBoardEl.checked : false
+    };
+    const dateCreated = Date.now();
+
+    const start  = Array.from(state.sel.start.values()).sort((a,b)=>a-b);
+    const hands  = Array.from(state.sel.hands.values()).sort((a,b)=>a-b);
+    const feet   = Array.from(state.sel.feet.values()).sort((a,b)=>a-b);
+    const finish = Array.from(state.sel.finish.values()).sort((a,b)=>a-b);
+
+    const use = hands.slice();
+
+    if (!(start.length || hands.length || feet.length || finish.length)) {
+      alert('Select at least one hold in any category');
+      return null;
+    }
+
+    const id = 'p_' + Math.random().toString(36).slice(2,9);
+    const problem = {
+      id, name, color, grade, rules, dateCreated,
+      categories: { start, hands, feet, finish },
+      use, start, finish
+    };
+    state.problems.push(problem);
+    renderProblemList();
+    return problem;
+  }
+
   if (clearSelectionBtn) {
     clearSelectionBtn.addEventListener('click', () => {
       resetBuilder(state.problemBuilder);
@@ -1652,42 +1698,7 @@ clearTickBtn.addEventListener('click', () => {
   }
 
   saveProblemBtn.addEventListener('click', () => {
-    if (state.mode !== 'problems') return;
-    const name  = pbNameEl.value.trim() || `Problem ${state.problems.length+1}`;
-    const color = pbColorEl.value || '#1e90ff';
-    const grade = pbGradeEl.value.trim();
-    const rules = {
-      feetFollow: feetFollowEl ? !!feetFollowEl.checked : false,
-      gridFeet: {
-        pinkFeel: gridFeetPinkEl ? !!gridFeetPinkEl.checked : false,
-        blueFeet: gridFeetBlueEl ? !!gridFeetBlueEl.checked : false,
-        blackFeet: gridFeetBlackEl ? !!gridFeetBlackEl.checked : false,
-      }
-    };
-    const dateCreated = Date.now();
-
-    const start  = Array.from(state.sel.start.values()).sort((a,b)=>a-b);
-    const hands  = Array.from(state.sel.hands.values()).sort((a,b)=>a-b);
-    const feet   = Array.from(state.sel.feet.values()).sort((a,b)=>a-b);
-    const finish = Array.from(state.sel.finish.values()).sort((a,b)=>a-b);
-
-    // Legacy fields for compatibility with your existing list UI
-    const use = hands.slice(); // treat "hands" as the old "use" set
-
-    if (!(start.length || hands.length || feet.length || finish.length)) {
-      alert('Select at least one hold in any category');
-      return;
-    }
-
-    const id = 'p_' + Math.random().toString(36).slice(2,9);
-    state.problems.push({
-      id, name, color, grade, rules, dateCreated,
-      // new structure
-      categories: { start, hands, feet, finish },
-      // legacy structure (so your existing Show works until we patch it below)
-      use, start, finish
-    });
-    renderProblemList();
+    saveProblemToState();
   });
   tickSentEl.addEventListener('change', () => {
     if (tickSentEl.checked && !tickDateEl.value) {
@@ -2152,3 +2163,22 @@ clearTickBtn.addEventListener('click', () => {
 
 
 
+  if (saveProblemCloudBtn) {
+    saveProblemCloudBtn.addEventListener('click', async () => {
+      const problem = saveProblemToState();
+      if (!problem) return;
+      if (!isCloudReady()) {
+        alert('Problem saved locally, but cloud services are not configured.');
+        return;
+      }
+      const targetId = (boardIdInput ? normalizeBoardId(boardIdInput.value) : '') || state.activeBoardId || 'primary';
+      if (boardIdInput && targetId) {
+        boardIdInput.value = targetId;
+      }
+      try {
+        await saveCloud(targetId);
+      } catch (err) {
+        alert('Problem saved locally, but cloud save failed: ' + (err && err.message ? err.message : err));
+      }
+    });
+  }
