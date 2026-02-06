@@ -32,6 +32,7 @@
   :root { --pad: 12px; --ui: 320px; }
   * { box-sizing: border-box; }
   body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#222; }
+  .top-banner { text-align:center; font-weight:700; color:#000; padding:8px; border-bottom:1px solid #eee; }
   header { padding: var(--pad); border-bottom:1px solid #eee; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   main { display:flex; height: calc(100vh - 60px); }
   #left { flex:1; display:grid; place-items:center; background:#fafafa; }
@@ -76,6 +77,7 @@
 </style>
 </head>
 <body>
+<div class="top-banner">Please use landscape view on mobile.</div>
 <header>
   <button class="btn" id="boardImageButton" type="button">Choose board image file</button>
   <input type="file" id="imageLoader" accept="image/*" style="display:none" />
@@ -83,7 +85,6 @@
   <button class="btn" id="sidebarToggle" type="button">Hide Sidebar</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
   <span class="muted">Resize hold: hover + mouse wheel (<span class="kbd">[</span>/<span class="kbd">]</span> keys too)</span>
-  <span class="muted">Please use landscape view on mobile.</span>
   <span id="versionBadge" class="version-badge"></span>
 </header>
 <main>
@@ -300,7 +301,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.7.3'; // Increment when you ship an update
+  const APP_VERSION = 'v1.7.4'; // Increment when you ship an update
 
   // --- State ---
   const state = {
