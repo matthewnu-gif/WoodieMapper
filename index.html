@@ -45,6 +45,15 @@
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .btn { padding:6px 10px; border:1px solid #ccc; border-radius:6px; background:#fff; cursor:pointer; }
   .btn:active { transform: translateY(1px); }
+  .btn-help {
+    background:#e02424;
+    border-color:#b91c1c;
+    color:#fff;
+    font-weight:700;
+  }
+  .btn-help:hover {
+    background:#c81e1e;
+  }
   .list { margin:8px 0; padding:0; list-style:none; max-height:180px; overflow:auto; border:1px solid #eee; border-radius:6px; }
   .list li { padding:6px 8px; border-bottom:1px solid #f3f3f3; display:flex; justify-content:space-between; gap:6px; align-items:center; }
   .pill { padding:2px 6px; border-radius:999px; border:1px solid #ddd; font-size:12px; }
@@ -85,7 +94,7 @@
   <button class="btn" id="sidebarToggle" type="button">Hide Sidebar</button>
   <span class="muted">Modes: <span class="kbd">H</span> Holds, <span class="kbd">P</span> Problems, <span class="kbd">Space</span> Pan</span>
   <span class="muted">Resize hold: hover + mouse wheel (<span class="kbd">[</span>/<span class="kbd">]</span> keys too)</span>
-  <button class="btn" id="helpBtn" type="button" style="margin-left:auto;">Help me??</button>
+  <button class="btn btn-help" id="helpBtn" type="button" style="margin-left:auto;">Help me??</button>
   <span id="versionBadge" class="version-badge"></span>
 </header>
 <main>
@@ -303,7 +312,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.8.1'; // Increment when you ship an update
+  const APP_VERSION = 'v1.8.2'; // Increment when you ship an update
 
   // --- State ---
   const state = {
