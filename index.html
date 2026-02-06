@@ -91,17 +91,45 @@
     <canvas id="c" width="1200" height="800"></canvas>
   </div>
   <aside id="right">
+    <fieldset id="storagePanel">
+      <legend>Storage</legend>
+      <div class="row" id="syncModeRow">
+        <strong>Mode:</strong>
+        <label class="row"><input type="radio" name="syncMode" value="local" checked> Local</label>
+        <label class="row"><input type="radio" name="syncMode" value="online"> Online</label>
+        <span id="syncStatus" class="muted" style="margin-left:auto"></span>
+      </div>
+      <div class="row">
+        <button class="btn" id="saveLocal">Save to Browser</button>
+        <button class="btn" id="loadLocal">Load</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label class="row" style="gap:6px; flex:1; align-items:center;">
+          <span>Board ID</span>
+          <input id="boardId" type="text" placeholder="e.g. woody-demo" style="flex:1; min-width:160px" />
+        </label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <select id="boardList" style="flex:1; min-width:160px"><option value="">No cloud boards available</option></select>
+        <button class="btn" id="refreshBoards">Refresh Boards</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="exportJson">Export JSON</button>
+        <input type="file" id="importJson" accept="application/json" />
+      </div>
+    </fieldset>
+
     <fieldset>
       <legend>Options</legend>
-      <label><input type="checkbox" id="showIds" checked /> Show IDs</label>
+      <label><input type="checkbox" id="showIds" /> Show IDs</label>
       <label><input type="checkbox" id="showRings" checked /> Show hold rings</label>
       <label><input type="checkbox" id="dimImage" /> Dim image behind overlays</label>
     </fieldset>
 
     <fieldset>
       <legend>Mode</legend>
-      <label><input type="radio" name="mode" value="holds" checked /> Holds (click to add circle, drag to move, <span class="kbd">Del</span> to remove)</label>
-            <label><input type="radio" name="mode" value="problems" /> Problems (click holds to toggle)</label>
+      <label><input type="radio" name="mode" value="holds" /> Holds (click to add circle, drag to move, <span class="kbd">Del</span> to remove)</label>
+            <label><input type="radio" name="mode" value="problems" checked /> Problems (click holds to toggle)</label>
       <label><input type="radio" name="mode" value="circuits" /> Circuits (select holds in order)</label>
     </fieldset>
 
@@ -185,39 +213,6 @@
       <ul class="list" id="circuitList"></ul>
     </fieldset>
 
-    <fieldset>
-      <legend>Storage</legend>
-      <div class="row" id="syncModeRow">
-        <strong>Mode:</strong>
-        <label class="row"><input type="radio" name="syncMode" value="local" checked> Local</label>
-        <label class="row"><input type="radio" name="syncMode" value="online"> Online</label>
-        <span id="syncStatus" class="muted" style="margin-left:auto"></span>
-      </div>
-      <div class="row">
-        <button class="btn" id="saveLocal">Save to Browser</button>
-        <button class="btn" id="loadLocal">Load</button>
-        <button class="btn" id="resetLocal">Reset</button>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <label class="row" style="gap:6px; flex:1; align-items:center;">
-          <span>Board ID</span>
-          <input id="boardId" type="text" placeholder="e.g. woody-demo" style="flex:1; min-width:160px" />
-        </label>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button class="btn" id="saveCloudId">Save to Cloud (ID)</button>
-        <button class="btn" id="loadCloudId">Load from Cloud (ID)</button>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <select id="boardList" style="flex:1; min-width:160px"><option value="">No cloud boards available</option></select>
-        <button class="btn" id="refreshBoards">Refresh Boards</button>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button class="btn" id="exportJson">Export JSON</button>
-        <input type="file" id="importJson" accept="application/json" />
-      </div>
-    </fieldset>
-
     <div class="muted">Free to use.</div>
   </aside>
 </main>
@@ -280,13 +275,13 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.7'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.8'; // Increment when you ship an update
 
   // --- State ---
   const state = {
     image: null, imgW: 0, imgH: 0,
     holds: [], // {id, x,y,r} where x,y are normalized [0..1], r is normalized radius vs min(imgW,imgH)
-    mode: 'holds',
+    mode: 'problems',
     pan: { active: false, x:0, y:0, startX:0, startY:0 },
     cam: { x:0, y:0, s: 1 }, // pan & zoom
     hoverId: null,
@@ -308,7 +303,7 @@
     currentItemType: 'problem',
     ticks: {},               // { [userId]: { [problemId]: { sent, onsight, flash, attempts, sessions, date } } }
     // UI toggles
-    showIds: true,
+    showIds: false,
     showRings: true,
     dimImage: false,
     sidebarHidden: false,
@@ -523,10 +518,7 @@ state.problemBuilder = createBuilderState();
   const syncStatusEl = document.getElementById('syncStatus');
   const saveBtn = document.getElementById('saveLocal');
   const loadBtn = document.getElementById('loadLocal');
-  const resetBtn = document.getElementById('resetLocal');
   const boardIdInput = document.getElementById('boardId');
-  const saveCloudIdBtn = document.getElementById('saveCloudId');
-  const loadCloudIdBtn = document.getElementById('loadCloudId');
   const boardListSelect = document.getElementById('boardList');
   const refreshBoardsBtn = document.getElementById('refreshBoards');
   const catEls = document.querySelectorAll('input[name="cat"]');
@@ -875,22 +867,20 @@ state.problemBuilder = createBuilderState();
   }
 
   function toggleSyncButtons(disabled){
-    [saveBtn, loadBtn, resetBtn, saveCloudIdBtn, loadCloudIdBtn, refreshBoardsBtn].forEach(btn => {
+    [saveBtn, loadBtn, refreshBoardsBtn].forEach(btn => {
       if (btn) btn.disabled = !!disabled;
     });
   }
 
   function updateSyncUI(){
-    if (!saveBtn || !loadBtn || !resetBtn) return;
+    if (!saveBtn || !loadBtn) return;
     if (state.syncMode === 'local') {
       saveBtn.textContent = 'Save to Browser';
       loadBtn.textContent = 'Load from Browser';
-      resetBtn.textContent = 'Reset Browser';
       setSyncStatus('Local mode');
     } else {
       saveBtn.textContent = 'Save to Cloud';
       loadBtn.textContent = 'Load from Cloud';
-      resetBtn.textContent = 'Reset Cloud';
       setSyncStatus(isCloudReady() ? 'Cloud ready' : 'Cloud unavailable');
     }
   }
@@ -1176,45 +1166,6 @@ state.problemBuilder = createBuilderState();
       console.error(err);
       setSyncStatus(`Cloud load failed (${targetId})`);
       alert('Failed to load from cloud: ' + (err.message || err));
-    } finally {
-      toggleSyncButtons(false);
-    }
-  }
-  async function resetCloud(boardId = state.activeBoardId || 'primary') {
-    if (!isCloudReady()) {
-      alert('Cloud services are not configured.');
-      return;
-    }
-    const targetId = normalizeBoardId(boardId) || 'primary';
-    if (!confirm(`Delete the cloud board data for "${targetId}"?`)) return;
-    toggleSyncButtons(true);
-    setSyncStatus(`Clearing cloud (${targetId})...`);
-    try {
-      const { firebase, supabase, bucket } = getCloudHandles();
-      const boardDoc = firebase.doc(firebase.db, 'boards', targetId);
-      await firebase.deleteDoc(boardDoc);
-      if (state.boardImagePath) {
-        const removal = await supabase.storage.from(bucket).remove([state.boardImagePath]);
-        if (removal.error) {
-          console.warn('Board image not removed:', removal.error);
-        } else {
-          state.boardImagePath = null;
-          state.boardImageUrl = null;
-        }
-      }
-      state.boardImageName = null;
-      if (boardListSelect) {
-        const ids = await fetchBoardList().catch(() => []);
-        if (boardIdInput && boardIdInput.value === targetId && !ids.includes(targetId)) {
-          boardListSelect.value = "";
-        }
-      }
-      setSyncStatus(`Cloud data cleared (${targetId})`);
-      alert(`Cloud data cleared. Board ID: ${targetId}`);
-    } catch (err) {
-      console.error(err);
-      setSyncStatus(`Cloud reset failed (${targetId})`);
-      alert('Failed to clear cloud data: ' + (err.message || err));
     } finally {
       toggleSyncButtons(false);
     }
@@ -1850,39 +1801,6 @@ clearTickBtn.addEventListener('click', () => {
     });
   }
 
-  if (saveCloudIdBtn) {
-    saveCloudIdBtn.addEventListener('click', async () => {
-      if (!isCloudReady()) {
-        alert('Cloud services are not configured.');
-        return;
-      }
-      let targetId = normalizeBoardId(boardIdInput ? boardIdInput.value : '');
-      if (!targetId) {
-        targetId = randomBoardId();
-      }
-      if (boardIdInput) {
-        boardIdInput.value = targetId;
-      }
-      await saveCloud(targetId);
-    });
-  }
-  if (loadCloudIdBtn) {
-    loadCloudIdBtn.addEventListener('click', async () => {
-      if (!isCloudReady()) {
-        alert('Cloud services are not configured.');
-        return;
-      }
-      const targetId = normalizeBoardId(boardIdInput ? boardIdInput.value : '');
-      if (!targetId) {
-        alert('Enter a board ID to load.');
-        return;
-      }
-      if (boardIdInput) {
-        boardIdInput.value = targetId;
-      }
-      await loadCloud(targetId);
-    });
-  }
   // Storage
   saveBtn.addEventListener('click', async () => {
     if (state.syncMode === 'local') {
@@ -1927,19 +1845,6 @@ clearTickBtn.addEventListener('click', () => {
     }
   });
 
-  resetBtn.addEventListener('click', async () => {
-    if (state.syncMode === 'local') {
-      localStorage.removeItem('woody_state_circles');
-      setSyncStatus('Local data cleared');
-      alert('Cleared browser save.');
-    } else {
-      const targetId = (boardIdInput ? normalizeBoardId(boardIdInput.value) : '') || state.activeBoardId || 'primary';
-      if (boardIdInput && targetId) {
-        boardIdInput.value = targetId;
-      }
-      await resetCloud(targetId);
-    }
-  });
   document.getElementById('exportJson').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(serialize(), null, 2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
