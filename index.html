@@ -99,9 +99,11 @@
         <label class="row"><input type="radio" name="syncMode" value="online"> Online</label>
         <span id="syncStatus" class="muted" style="margin-left:auto"></span>
       </div>
-      <div class="row">
-        <button class="btn" id="saveLocal">Save to Browser</button>
-        <button class="btn" id="loadLocal">Load</button>
+      <div class="row" style="margin-top:6px; justify-content:flex-end">
+        <button class="btn" id="refreshBoards">Refresh Boards</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <select id="boardList" style="flex:1; min-width:160px"><option value="">No cloud boards available</option></select>
       </div>
       <div class="row" style="margin-top:6px">
         <label class="row" style="gap:6px; flex:1; align-items:center;">
@@ -110,12 +112,17 @@
         </label>
       </div>
       <div class="row" style="margin-top:6px">
-        <select id="boardList" style="flex:1; min-width:160px"><option value="">No cloud boards available</option></select>
-        <button class="btn" id="refreshBoards">Refresh Boards</button>
+        <button class="btn" id="saveLocal">Save to Browser</button>
+        <button class="btn" id="loadLocal">Load</button>
       </div>
       <div class="row" style="margin-top:6px">
         <button class="btn" id="exportJson">Export JSON</button>
-        <input type="file" id="importJson" accept="application/json" />
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label class="row" style="gap:6px; flex:1; align-items:center;">
+          <span>Choose file</span>
+          <input type="file" id="importJson" accept="application/json" style="flex:1;" />
+        </label>
       </div>
     </fieldset>
 
@@ -275,7 +282,7 @@
 
 <script>
 (() => {
-  const APP_VERSION = 'v1.6.8'; // Increment when you ship an update
+  const APP_VERSION = 'v1.6.9'; // Increment when you ship an update
 
   // --- State ---
   const state = {
